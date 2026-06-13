@@ -4,22 +4,36 @@
   "description": "Test utilities for stepflow: the JobRepository contract suite and a Puppeteer Page test double.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KMGeon/stepflow.git",
+    "directory": "packages/test"
+  },
+  "homepage": "https://github.com/KMGeon/stepflow#readme",
+  "bugs": "https://github.com/KMGeon/stepflow/issues",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "sideEffects": false,
   "scripts": {
     "build": "tsup",
+    "prepack": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

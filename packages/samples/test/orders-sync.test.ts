@@ -39,4 +39,36 @@ describe('sample: orders_sync', () => {
     expect(result.status).toBe('COMPLETED');
     expect(result.exitStatus).toBe('COMPLETED'); // cleanup completes the job
   });
+
+  it('restarts from the failed step, skipping completed steps (e2e round-trip)', async () => {
+    const calls = { type: 0, confirmWait: 0 };
+    const page = createFakePage({
+      goto: () => Promise.resolve(null),
+      type: () => {
+        calls.type += 1;
+        return Promise.resolve();
+      },
+      click: () => Promise.resolve(),
+      waitForNavigation: () => Promise.resolve(null),
+      $$eval: () => Promise.resolve(3), // rows present → 'COMPLETED' → confirm path
+      waitForSelector: (selector: string) => {
+        if (selector === '#confirm-done') {
+          calls.confirmWait += 1;
+          if (calls.confirmWait === 1) throw new Error('confirm timeout');
+        }
+        return Promise.resolve(null);
+      },
+    });
+    const repo = new InMemoryJobRepository();
+
+    const first = await runOrdersSync(page, repo);
+    expect(first.status).toBe('FAILED');
+    expect(calls.type).toBe(2); // login typed username + password
+
+    const second = await runOrdersSync(page, repo);
+    expect(second.status).toBe('COMPLETED');
+    expect(second.restarted).toBe(true);
+    expect(calls.type).toBe(2); // login skipped on restart → no new type() calls
+    expect(calls.confirmWait).toBe(2); // confirm re-ran and succeeded
+  });
 });

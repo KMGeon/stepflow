@@ -35,6 +35,8 @@ browser or owns a connection; you inject the `page` and the connection pool.
 ## Quick start
 
 ```ts
+import puppeteer from 'puppeteer';
+
 import { defineJob, runJob, InMemoryJobRepository } from '@stepflow/core';
 
 const job = defineJob('orders_sync')

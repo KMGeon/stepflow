@@ -31,9 +31,10 @@ export interface FinishStepInput {
  * Persistence boundary for all job/step metadata and ExecutionContext.
  *
  * stepflow owns neither the database connection nor the storage engine — an
- * implementation is injected into {@link import('../core/run-job').runJob}.
- * Two implementations ship in v0.1: `MySqlJobRepository` and
- * `InMemoryJobRepository`; both satisfy the shared contract test suite.
+ * implementation is injected into {@link runJob}. Two implementations ship:
+ * `InMemoryJobRepository` (this package) and `MySqlJobRepository`
+ * (`@stepflow/infrastructure`); both satisfy the shared contract suite from
+ * `@stepflow/test`.
  */
 export interface JobRepository {
   /** Find or create the {@link JobInstance} for `(jobName, jobKey)`. */

@@ -182,7 +182,7 @@ CREATE TABLE job_execution (
   error           TEXT         NULL,
   items_collected INT          NULL,            -- L2: 결과 메트릭
   result_meta     JSON         NULL,            -- L2: job별 결과 메타
-  INDEX idx_instance (instance_id),
+  INDEX idx_execution_instance (instance_id, id),
   FOREIGN KEY (instance_id) REFERENCES job_instance(id)
 );
 
@@ -209,7 +209,7 @@ CREATE TABLE step_execution (
   write_count       INT          NOT NULL DEFAULT 0,  -- L2
   skip_count        INT          NOT NULL DEFAULT 0,  -- L2
   error             TEXT         NULL,
-  INDEX idx_exec (job_execution_id),
+  INDEX idx_step_execution (job_execution_id, id),
   FOREIGN KEY (job_execution_id) REFERENCES job_execution(id)
 );
 
@@ -234,32 +234,43 @@ interface JobRepository {
   resolveInstance(jobName: string, jobKey: string): Promise<JobInstance>; // upsert
   findLastExecution(instanceId: number): Promise<JobExecution | null>; // restart 판정
   createExecution(instanceId: number, params: JobParameters): Promise<JobExecution>;
-  finishExecution(
-    execId: number,
-    status: string,
-    exitStatus: string,
-    opts?: { error?: string; meta?: ResultMeta },
-  ): Promise<void>;
+  finishExecution(executionId: number, input: FinishExecutionInput): Promise<void>;
 
   // step
-  startStep(execId: number, stepName: string, seqNo: number): Promise<StepExecution>;
-  finishStep(
-    stepExecId: number,
-    status: string,
-    exitStatus: string,
-    opts?: { error?: string; durationMs?: number; counts?: StepCounts },
-  ): Promise<void>;
-  findStepExecutions(execId: number): Promise<StepExecution[]>; // 통과 경로 복원 (실행/시작 순서로 반환, seqNo 아님)
+  startStep(executionId: number, stepName: string, seqNo: number): Promise<StepExecution>;
+  finishStep(stepExecutionId: number, input: FinishStepInput): Promise<void>;
+  findStepExecutions(executionId: number): Promise<readonly StepExecution[]>; // 실행/시작 순서(id), seqNo 아님
 
-  // ExecutionContext
+  // ExecutionContext (ctx 는 JSON 직렬화 가능해야 함)
   saveContext(
-    ownerType: 'JOB' | 'STEP',
+    ownerType: ContextOwnerType,
     ownerId: number,
     ctx: Record<string, unknown>,
   ): Promise<void>;
-  loadContext(ownerType: 'JOB' | 'STEP', ownerId: number): Promise<Record<string, unknown> | null>;
+  loadContext(
+    ownerType: ContextOwnerType,
+    ownerId: number,
+  ): Promise<Record<string, unknown> | null>;
+}
+
+// 입력 타입
+interface FinishExecutionInput {
+  status: 'COMPLETED' | 'FAILED';
+  exitStatus: string;
+  error?: string;
+  itemsCollected?: number;
+  resultMeta?: ResultMeta;
+}
+interface FinishStepInput {
+  status: 'COMPLETED' | 'FAILED';
+  exitStatus: string;
+  error?: string;
+  durationMs?: number;
+  counts?: Partial<StepCounts>;
 }
 ```
+
+> 위 시그니처/스키마 스니펫은 설명용이며, **정본(canonical)은 `@stepflow/core`가 export하는 타입과 `@stepflow/infrastructure/schema.sql`** 이다.
 
 **v0.1 구현 2종**:
 
@@ -305,7 +316,7 @@ stepflow는 단일 npm 패키지가 아니라 **npm-workspaces 모노레포**로
 | **`@stepflow/core`**           | PUBLISH | types, errors, job-key 해시, `defineJob`, `runJob`, JobRepository 인터페이스, 메타데이터 모델, **InMemoryJobRepository**(DB-free 기본 repo) | 런타임 의존성 없음. `puppeteer`는 peer(타입만) |
 | **`@stepflow/infrastructure`** | PUBLISH | `MySqlJobRepository` + `schema.sql`                                                                                                         | `@stepflow/core` 의존. `mysql2`는 peer         |
 | **`@stepflow/test`**           | PUBLISH | `describeJobRepositoryContract` 공용 contract 스위트 + `createFakePage` Puppeteer Page 테스트 더블                                          | `@stepflow/core`                               |
-| **`@stepflow/samples`**        | private | 범용 `orders_sync` 예제                                                                                                                     | core + infrastructure                          |
+| **`@stepflow/samples`**        | private | 범용 `orders_sync` 예제                                                                                                                     | core (+ test·puppeteer dev)                    |
 | **`@stepflow/docs`**           | private | 이 설계 문서 + TypeDoc API 생성                                                                                                             | —                                              |
 
 - 두 repository 구현(`InMemoryJobRepository` / `MySqlJobRepository`)은 `@stepflow/test`의 `describeJobRepositoryContract` 동일 스위트를 통과해야 한다.
