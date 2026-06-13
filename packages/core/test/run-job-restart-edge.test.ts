@@ -96,4 +96,30 @@ describe('runJob — failure & restart edge cases', () => {
     // count applied exactly once: the failed attempt's mutation was not persisted.
     expect(await repo.loadContext('JOB', second.executionId)).toEqual({ base: 10, count: 1 });
   });
+
+  it('preserves carried-forward shared context across repeated restarts', async () => {
+    const attempts = { b: 0 };
+    let seenX: unknown = 'unset';
+    const job = defineJob('double-restart')
+      .step('a', async (ctx) => {
+        ctx.shared.x = 1;
+      })
+      .step('b', async (ctx) => {
+        attempts.b += 1;
+        if (attempts.b <= 2) throw new Error(`fail ${String(attempts.b)}`);
+        seenX = ctx.shared.x; // third attempt must still see the carried-forward value
+      })
+      .build();
+
+    const r1 = await runJob(job, { page, repository: repo }); // a ok, b fails (attempt 1)
+    expect(r1.status).toBe('FAILED');
+    const r2 = await runJob(job, { page, repository: repo }); // restart: skip a, b fails (attempt 2)
+    expect(r2.status).toBe('FAILED');
+    expect(r2.restarted).toBe(true);
+    const r3 = await runJob(job, { page, repository: repo }); // restart: skip a, b succeeds (attempt 3)
+    expect(r3.status).toBe('COMPLETED');
+    expect(r3.restarted).toBe(true);
+    // x produced by the skipped step `a` must survive BOTH restarts.
+    expect(seenX).toBe(1);
+  });
 });

@@ -72,6 +72,11 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
   if (restarting && previous !== null) {
     const priorSteps = await repository.findStepExecutions(previous.id);
     current = await carryForwardPrefix(job, repository, execution.id, priorSteps);
+    // Persist the carried-forward context onto this execution immediately, so it
+    // survives even if the resumed step fails again before reaching a successful
+    // checkpoint — otherwise a second consecutive restart would load an empty
+    // context and lose data produced by the skipped steps.
+    await repository.saveContext('JOB', execution.id, shared);
   }
 
   const ctx = buildContext({
