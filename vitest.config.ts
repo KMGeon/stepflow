@@ -1,0 +1,14 @@
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    include: ['test/**/*.test.ts'],
+    environment: 'node',
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.ts'],
+      // Type-only modules have no executable code.
+      exclude: ['src/index.ts', 'src/**/types.ts', 'src/repository/job-repository.ts'],
+    },
+  },
+});

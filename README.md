@@ -22,6 +22,7 @@
 없는 것: **재시도(retry)·체크포인트 재시작·chunk 처리·item 리스너·트랜잭션·파티셔닝.**
 
 이 구조를 일반화하여:
+
 - Step 시퀀스를 **데이터가 아닌 함수형 단위 + 조건 분기 Flow**로 표준화
 - 실행이력/재시작/관측성을 **JobRepository(MySQL)** 로 표준화
 
@@ -36,32 +37,41 @@
 
 ## 4. 핵심 개념
 
-| 개념 | 설명 | agent-server 대응 |
-|---|---|---|
-| **Job** | 이름이 붙은 Step 흐름(Flow) 정의 | `sabangnet_pull` |
-| **JobParameters** | 실행 파라미터(날짜·스토어ID 등). 식별 파라미터는 인스턴스 정체성에 포함 | (신규) |
-| **JobInstance** | `(jobName + 식별 params 해시)` 로 식별되는 논리적 실행 단위 | (신규) |
-| **Step** | `{ name, run(ctx) }` 함수형 단위 | `StepDef` + service 메서드 |
-| **Flow** | Step 간 조건 전이(transition) 그래프 (선형 기본 + 분기 예외) | (신규) |
-| **JobExecution** | JobInstance의 1회 실행(상태/시각/에러/결과) | watchdog 부분 기능 |
-| **StepExecution** | Step 1회 실행 기록(상태/exit status/카운트) | watchdog 부분 기능 |
-| **ExecutionContext** | Job/Step 레벨의 영속 key-value (restart 재개 상태) | (신규) |
-| **JobRepository** | 위 메타데이터를 저장·조회 (MySQL / InMemory) | 신규 |
+| 개념                 | 설명                                                                    | agent-server 대응          |
+| -------------------- | ----------------------------------------------------------------------- | -------------------------- |
+| **Job**              | 이름이 붙은 Step 흐름(Flow) 정의                                        | `sabangnet_pull`           |
+| **JobParameters**    | 실행 파라미터(날짜·스토어ID 등). 식별 파라미터는 인스턴스 정체성에 포함 | (신규)                     |
+| **JobInstance**      | `(jobName + 식별 params 해시)` 로 식별되는 논리적 실행 단위             | (신규)                     |
+| **Step**             | `{ name, run(ctx) }` 함수형 단위                                        | `StepDef` + service 메서드 |
+| **Flow**             | Step 간 조건 전이(transition) 그래프 (선형 기본 + 분기 예외)            | (신규)                     |
+| **JobExecution**     | JobInstance의 1회 실행(상태/시각/에러/결과)                             | watchdog 부분 기능         |
+| **StepExecution**    | Step 1회 실행 기록(상태/exit status/카운트)                             | watchdog 부분 기능         |
+| **ExecutionContext** | Job/Step 레벨의 영속 key-value (restart 재개 상태)                      | (신규)                     |
+| **JobRepository**    | 위 메타데이터를 저장·조회 (MySQL / InMemory)                            | 신규                       |
 
 ## 5. 오써링 API — 선형 기본 + 분기 예외 (확정)
 
 ```ts
 const job = defineJob('sabangnet_pull')
-  .step('login',   async (ctx) => { await ctx.page.goto(URL); /* ... */ })
-  .step('search',  async (ctx) => { /* ctx.params.date 사용 */ })
-  .step('parse',   async (ctx) => ctx.shared.rows?.length ? 'COMPLETED' : 'EMPTY')
-  .step('confirm', async (ctx) => { /* ... */ })
-  .step('cleanup', async (ctx) => { /* ... */ })
-  .branch('parse', { EMPTY: 'cleanup' })   // 선형 외 분기만 예외 선언
-  .build();                                 // 그래프·도달성·restart 정적 검증
+  .step('login', async (ctx) => {
+    await ctx.page.goto(URL); /* ... */
+  })
+  .step('search', async (ctx) => {
+    /* ctx.params.date 사용 */
+  })
+  .step('parse', async (ctx) => (ctx.shared.rows?.length ? 'COMPLETED' : 'EMPTY'))
+  .step('confirm', async (ctx) => {
+    /* ... */
+  })
+  .step('cleanup', async (ctx) => {
+    /* ... */
+  })
+  .branch('parse', { EMPTY: 'cleanup' }) // 선형 외 분기만 예외 선언
+  .build(); // 그래프·도달성·restart 정적 검증
 ```
 
 규칙:
+
 - `.step(name, run)` 등록 순서 = **기본 선형 전이** (`COMPLETED` → 다음 step). 진입점은 첫 `.step`
 - `.branch(step, { exitStatus: target })` 로 분기만 덮어씀. 매칭되는 전이가 없으면 그 exit status로 Job 종료
 - `.build()` 시 Flow 그래프 정적 검증: 미정의 step 참조, 도달 불가 step, 잘못된 분기 타겟 등
@@ -75,13 +85,13 @@ type ExitStatus = 'COMPLETED' | 'FAILED' | (string & {});
 
 interface StepContext {
   jobName: string;
-  instanceId: number;     // JobInstance id (jobName + 식별 params 해시)
-  executionId: number;    // 이번 JobExecution id
-  params: Readonly<Record<string, string>>;   // JobParameters
-  page: Page;             // Puppeteer Page (항상 주입)
-  browser?: Browser;      // Puppeteer Browser (2탭/멀티페이지용, 옵션)
+  instanceId: number; // JobInstance id (jobName + 식별 params 해시)
+  executionId: number; // 이번 JobExecution id
+  params: Readonly<Record<string, string>>; // JobParameters
+  page: Page; // Puppeteer Page (항상 주입)
+  browser?: Browser; // Puppeteer Browser (2탭/멀티페이지용, 옵션)
   shared: Record<string, unknown>; // job-level ExecutionContext (영속·restart 복원)
-  logger: Logger;         // 인터페이스만 의존 (구현 주입)
+  logger: Logger; // 인터페이스만 의존 (구현 주입)
 }
 
 interface Step {
@@ -92,6 +102,7 @@ interface Step {
 ```
 
 **exit status 규칙**
+
 - `run`이 정상 리턴(void) → `COMPLETED`
 - `run`이 throw → `FAILED`
 - `run`이 문자열 리턴 → 그 문자열이 exit status (커스텀 분기용, 예: `'EMPTY'`)
@@ -102,12 +113,12 @@ interface Step {
 
 ```ts
 const result = await runJob(job, {
-  params: { date: '2026-06-13', storeId: 'A' },  // JobParameters (식별 파라미터)
-  page,                  // 필수 — 소비자가 소유 (stepflow는 launch 안 함)
-  browser,               // 옵션 (2탭/멀티페이지)
-  repository,            // JobRepository (MySql / InMemory)
-  logger,                // 옵션 (기본 no-op)
-  restart,               // 옵션 (기본 true: FAILED 직전 실행 자동 재개. false면 항상 fresh)
+  params: { date: '2026-06-13', storeId: 'A' }, // JobParameters (식별 파라미터)
+  page, // 필수 — 소비자가 소유 (stepflow는 launch 안 함)
+  browser, // 옵션 (2탭/멀티페이지)
+  repository, // JobRepository (MySql / InMemory)
+  logger, // 옵션 (기본 no-op)
+  restart, // 옵션 (기본 true: FAILED 직전 실행 자동 재개. false면 항상 fresh)
 });
 // result: { instanceId, executionId, status, exitStatus, restarted }
 ```
@@ -128,11 +139,11 @@ const result = await runJob(job, {
 
 ### 재실행 판정 규칙 (RPA 도메인 조정)
 
-| 직전 실행 상태 | 기본 동작 | 비고 |
-|---|---|---|
-| 없음 | 신규 fresh 실행 | 첫 실행 |
-| `FAILED` | **restart** (실패 step부터 재개) | `shared`/경로 복원 |
-| `COMPLETED` | **신규 fresh 실행** (처음부터) | ⚠️ Spring Batch-strict는 "완료 인스턴스 재실행 불가"지만, **stepflow는 cron 재실행을 위해 허용** |
+| 직전 실행 상태 | 기본 동작                        | 비고                                                                                             |
+| -------------- | -------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 없음           | 신규 fresh 실행                  | 첫 실행                                                                                          |
+| `FAILED`       | **restart** (실패 step부터 재개) | `shared`/경로 복원                                                                               |
+| `COMPLETED`    | **신규 fresh 실행** (처음부터)   | ⚠️ Spring Batch-strict는 "완료 인스턴스 재실행 불가"지만, **stepflow는 cron 재실행을 위해 허용** |
 
 - `runJob(job, { ..., restart: false })` → FAILED여도 restart 안 하고 fresh 실행 (강제 새 시작)
 - "매 실행을 항상 별개 인스턴스로" 원하면, 식별 파라미터에 timestamp/run-id를 넣는다 (Spring Batch incrementer 패턴 — v0.2에서 헬퍼 제공)
@@ -140,9 +151,10 @@ const result = await runJob(job, {
 
 ### ⚠️ 도메인 함정 — 살아있는 브라우저 세션은 복원되지 않는다
 
-`shared`(직렬화 가능한 데이터)는 restart 시 복원되지만, **로그인 세션·쿠키 같은 `page` 런타임 상태는 새 브라우저에서 사라진다.** Spring Batch에는 없는 RPA 특유의 한계다. 따라서 restart는 *"완전 무상태 재개"* 가 아니라 **"데이터 재개 + 세션 재확립"** 모델이다.
+`shared`(직렬화 가능한 데이터)는 restart 시 복원되지만, **로그인 세션·쿠키 같은 `page` 런타임 상태는 새 브라우저에서 사라진다.** Spring Batch에는 없는 RPA 특유의 한계다. 따라서 restart는 _"완전 무상태 재개"_ 가 아니라 **"데이터 재개 + 세션 재확립"** 모델이다.
 
 완화책:
+
 - 소비자의 `BrowserService`가 **영속 Chrome 프로필**을 쓰면 세션이 유지되어 `login` step도 건너뛸 수 있음
 - 그렇지 않으면, restart 시 `login` step은 다시 타도록 Flow를 설계 (예: 세션 확인 후 분기)
 
@@ -219,25 +231,38 @@ CREATE TABLE execution_context (
 ```ts
 interface JobRepository {
   // 인스턴스 / 실행
-  resolveInstance(jobName: string, jobKey: string): Promise<JobInstance>;          // upsert
-  findLastExecution(instanceId: number): Promise<JobExecution | null>;             // restart 판정
+  resolveInstance(jobName: string, jobKey: string): Promise<JobInstance>; // upsert
+  findLastExecution(instanceId: number): Promise<JobExecution | null>; // restart 판정
   createExecution(instanceId: number, params: JobParameters): Promise<JobExecution>;
-  finishExecution(execId: number, status: string, exitStatus: string,
-                  opts?: { error?: string; meta?: ResultMeta }): Promise<void>;
+  finishExecution(
+    execId: number,
+    status: string,
+    exitStatus: string,
+    opts?: { error?: string; meta?: ResultMeta },
+  ): Promise<void>;
 
   // step
   startStep(execId: number, stepName: string, seqNo: number): Promise<StepExecution>;
-  finishStep(stepExecId: number, status: string, exitStatus: string,
-             opts?: { error?: string; durationMs?: number; counts?: StepCounts }): Promise<void>;
-  findStepExecutions(execId: number): Promise<StepExecution[]>;                     // 통과 경로 복원
+  finishStep(
+    stepExecId: number,
+    status: string,
+    exitStatus: string,
+    opts?: { error?: string; durationMs?: number; counts?: StepCounts },
+  ): Promise<void>;
+  findStepExecutions(execId: number): Promise<StepExecution[]>; // 통과 경로 복원
 
   // ExecutionContext
-  saveContext(ownerType: 'JOB' | 'STEP', ownerId: number, ctx: Record<string, unknown>): Promise<void>;
+  saveContext(
+    ownerType: 'JOB' | 'STEP',
+    ownerId: number,
+    ctx: Record<string, unknown>,
+  ): Promise<void>;
   loadContext(ownerType: 'JOB' | 'STEP', ownerId: number): Promise<Record<string, unknown> | null>;
 }
 ```
 
 **v0.1 구현 2종**:
+
 - `MySqlJobRepository` — 프로덕션 (mysql2 prepared statement 직접 사용)
 - `InMemoryJobRepository` — 테스트/로컬 (DB 인프라 불필요)
 
@@ -245,25 +270,27 @@ interface JobRepository {
 
 ## 10. 기술 스택
 
-| 영역 | 선택 | 비고 |
-|---|---|---|
-| 언어 | TypeScript (strict) | 타입 추론이 빌더 API의 핵심 |
-| 런타임 | Node.js 20+ LTS | |
-| 배포 포맷 | ESM + CJS 듀얼 | |
-| 브라우저 | **`puppeteer`** (peerDependency) | 타입 의존만, launch는 소비자 |
-| DB 드라이버 | **`mysql2`** (peerDependency) | 사용자가 커넥션 풀 주입 |
-| 빌드 | `tsup` | esbuild 기반 듀얼 번들 + d.ts |
-| 테스트 | `vitest` | **InMemoryJobRepository 중심** (§12) |
-| 패키지 매니저 | **`npm`** | 단일 패키지, workspaces 불필요 |
-| 린트/포맷 | eslint + prettier | |
+| 영역          | 선택                             | 비고                                 |
+| ------------- | -------------------------------- | ------------------------------------ |
+| 언어          | TypeScript (strict)              | 타입 추론이 빌더 API의 핵심          |
+| 런타임        | Node.js 20+ LTS                  |                                      |
+| 배포 포맷     | ESM + CJS 듀얼                   |                                      |
+| 브라우저      | **`puppeteer`** (peerDependency) | 타입 의존만, launch는 소비자         |
+| DB 드라이버   | **`mysql2`** (peerDependency)    | 사용자가 커넥션 풀 주입              |
+| 빌드          | `tsup`                           | esbuild 기반 듀얼 번들 + d.ts        |
+| 테스트        | `vitest`                         | **InMemoryJobRepository 중심** (§12) |
+| 패키지 매니저 | **`npm`**                        | 단일 패키지, workspaces 불필요       |
+| 린트/포맷     | eslint + prettier                |                                      |
 
 ### 의존성 철학
+
 - 코어 런타임 의존성 최소화 (엔진/빌더/전이/해시는 순수 TS)
 - `puppeteer`/`mysql2`는 **peerDependency** — stepflow가 브라우저도 커넥션도 소유하지 않고 주입받음
 - ORM(Prisma/TypeORM) 미사용 — `mysql2` prepared statement 직접 사용
 - 로거는 인터페이스만 의존
 
 ### 의도적 배제 (v0.1)
+
 - ❌ NestJS 코어 결합 (후속 `@stepflow/nestjs` 어댑터 여지만 남김)
 - ❌ Postgres 어댑터 (인터페이스만 분리)
 - ❌ ORM / DI 컨테이너 / 마이그레이션 툴
@@ -289,6 +316,7 @@ interface JobRepository {
 ## 13. v0.1 범위 (Scope)
 
 **포함**
+
 - 함수형 Step 계약 + `StepContext`(`page` 주입, `params`, `shared`)
 - 선형 기본 + 분기 예외 빌더 API + 정적 검증
 - `runJob` 엔진 (page 주입 전용, launch 안 함)
@@ -299,6 +327,7 @@ interface JobRepository {
 - vitest 단위/엔진(InMemory)/e2e 테스트
 
 **제외 (후속 → §15)**
+
 - retry / recovery policy
 - listeners / hooks
 - chunk-oriented 처리 / skip policy
@@ -313,12 +342,12 @@ interface JobRepository {
 
 ## 15. 로드맵 (전체 목표 = Spring Batch 기능 이식)
 
-| 버전 | 내용 |
-|---|---|
+| 버전            | 내용                                                                                                                         |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | **v0.1 (이번)** | 선형+분기 빌더 · page 주입 · L3 스키마 · 파라미터 1급 + 인스턴스 restart · ExecutionContext 영속 · MySql/InMemory repository |
-| **v0.2** | retry/recovery (백오프 + 실패 아티팩트: 스크린샷/HTML) · listeners (lifecycle seam 공식화) · 파라미터 검증/incrementer |
-| **v0.3** | chunk-oriented (ItemReader/Processor/Writer + skip policy + `execution_context` 체크포인트 = item 700부터 재개) |
-| **later** | 병렬/파티셔닝(멀티 브라우저) · Postgres/InMemory 외 어댑터 · `@stepflow/nestjs` · watchdog 대시보드 이식 |
+| **v0.2**        | retry/recovery (백오프 + 실패 아티팩트: 스크린샷/HTML) · listeners (lifecycle seam 공식화) · 파라미터 검증/incrementer       |
+| **v0.3**        | chunk-oriented (ItemReader/Processor/Writer + skip policy + `execution_context` 체크포인트 = item 700부터 재개)              |
+| **later**       | 병렬/파티셔닝(멀티 브라우저) · Postgres/InMemory 외 어댑터 · `@stepflow/nestjs` · watchdog 대시보드 이식                     |
 
 ## 16. 성공 기준
 
@@ -329,12 +358,12 @@ interface JobRepository {
 
 ## 17. 변경 이력 (v0.1 → v0.2)
 
-| 항목 | v0.1 | v0.2 |
-|---|---|---|
-| 오써링 API | `.start()` + 명시적 `.on(step,status).to(next)` | **선형 기본 `.step()` + 분기 예외 `.branch()`** |
-| Puppeteer | `dependency`, 주입 없으면 stepflow가 launch | **`peerDependency`, page 주입 전용 (launch 안 함)** |
-| 메타데이터 | L1 (job_execution + step_execution) | **L3 (instance + params + execution_context + L2 메트릭)** |
-| 파라미터 | 없음 | **JobParameters 1급 (ctx.params)** |
-| restart 정체성 | jobName 기준 마지막 실패 | **JobInstance(jobName + 식별 params) 기준** |
-| ExecutionContext | `shared` 인메모리만 | **영속·복원 (restart 정합성)** |
-| Repository 구현 | MySql만 (InMemory는 후속) | **MySql + InMemory (테스트), contract 테스트** |
+| 항목             | v0.1                                            | v0.2                                                       |
+| ---------------- | ----------------------------------------------- | ---------------------------------------------------------- |
+| 오써링 API       | `.start()` + 명시적 `.on(step,status).to(next)` | **선형 기본 `.step()` + 분기 예외 `.branch()`**            |
+| Puppeteer        | `dependency`, 주입 없으면 stepflow가 launch     | **`peerDependency`, page 주입 전용 (launch 안 함)**        |
+| 메타데이터       | L1 (job_execution + step_execution)             | **L3 (instance + params + execution_context + L2 메트릭)** |
+| 파라미터         | 없음                                            | **JobParameters 1급 (ctx.params)**                         |
+| restart 정체성   | jobName 기준 마지막 실패                        | **JobInstance(jobName + 식별 params) 기준**                |
+| ExecutionContext | `shared` 인메모리만                             | **영속·복원 (restart 정합성)**                             |
+| Repository 구현  | MySql만 (InMemory는 후속)                       | **MySql + InMemory (테스트), contract 테스트**             |
