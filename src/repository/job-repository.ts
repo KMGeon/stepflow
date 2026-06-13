@@ -54,10 +54,17 @@ export interface JobRepository {
   /** Record a terminal status for a step execution. */
   finishStep(stepExecutionId: number, input: FinishStepInput): Promise<void>;
 
-  /** All step executions of an execution, ordered by `seqNo` ascending. */
+  /**
+   * All step executions of an execution, in **execution (start) order** —
+   * ascending by creation, NOT by `seqNo`. Branches may run steps out of `seqNo`
+   * order, and restart replay depends on this temporal order.
+   */
   findStepExecutions(executionId: number): Promise<readonly StepExecution[]>;
 
-  /** Persist (upsert) an ExecutionContext snapshot for a job or step. */
+  /**
+   * Persist (upsert) an ExecutionContext snapshot for a job or step. `ctx` must
+   * be JSON-serializable; implementations normalize through JSON.
+   */
   saveContext(
     ownerType: ContextOwnerType,
     ownerId: number,

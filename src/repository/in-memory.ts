@@ -39,8 +39,9 @@ const ZERO_COUNTS: StepCounts = { readCount: 0, writeCount: 0, skipCount: 0 };
 
 /**
  * In-memory {@link JobRepository} for tests and local runs. Holds no external
- * resources; deep-clones ExecutionContext on the way in and out so stored state
- * never aliases caller state.
+ * resources; round-trips ExecutionContext and result metadata through JSON (like
+ * the MySQL adapter) so stored state never aliases caller state and the two
+ * implementations are behaviourally identical.
  */
 export class InMemoryJobRepository implements JobRepository {
   #instanceSeq = 0;
@@ -107,7 +108,7 @@ export class InMemoryJobRepository implements JobRepository {
     record.durationMs = endedAt.getTime() - record.startedAt.getTime();
     record.error = input.error ?? null;
     record.itemsCollected = input.itemsCollected ?? null;
-    record.resultMeta = input.resultMeta ? structuredClone(input.resultMeta) : null;
+    record.resultMeta = input.resultMeta ? jsonClone(input.resultMeta) : null;
     return Promise.resolve();
   }
 
@@ -164,7 +165,7 @@ export class InMemoryJobRepository implements JobRepository {
     ownerId: number,
     ctx: Record<string, unknown>,
   ): Promise<void> {
-    this.#contexts.set(contextKey(ownerType, ownerId), structuredClone(ctx));
+    this.#contexts.set(contextKey(ownerType, ownerId), jsonClone(ctx));
     return Promise.resolve();
   }
 
@@ -173,7 +174,7 @@ export class InMemoryJobRepository implements JobRepository {
     ownerId: number,
   ): Promise<Record<string, unknown> | null> {
     const found = this.#contexts.get(contextKey(ownerType, ownerId));
-    return Promise.resolve(found ? structuredClone(found) : null);
+    return Promise.resolve(found ? jsonClone(found) : null);
   }
 }
 
@@ -183,6 +184,15 @@ function compositeKey(jobName: string, jobKey: string): string {
 
 function contextKey(ownerType: ContextOwnerType, ownerId: number): string {
   return JSON.stringify([ownerType, ownerId]);
+}
+
+/**
+ * Round-trip through JSON so stored state neither aliases caller state nor
+ * preserves non-JSON values — matching the JSON-column semantics of
+ * MySqlJobRepository, so both implementations behave identically.
+ */
+function jsonClone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
 }
 
 function snapshotExecution(record: ExecutionRecord): JobExecution {
@@ -196,7 +206,7 @@ function snapshotExecution(record: ExecutionRecord): JobExecution {
     durationMs: record.durationMs,
     error: record.error,
     itemsCollected: record.itemsCollected,
-    resultMeta: record.resultMeta ? structuredClone(record.resultMeta) : null,
+    resultMeta: record.resultMeta ? jsonClone(record.resultMeta) : null,
   };
 }
 

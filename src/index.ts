@@ -31,4 +31,5 @@ export { runJob } from './core/run-job';
 export type { RunJobOptions, RunJobResult } from './core/run-job';
 
 export { InMemoryJobRepository } from './repository/in-memory';
-export { MySqlJobRepository } from './repository/mysql';
+// MySqlJobRepository is exported from the "stepflow/mysql" subpath so the root
+// entry never imports mysql2 types (mysql2 is an optional peer dependency).

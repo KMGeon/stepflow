@@ -7,8 +7,13 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
-      // Type-only modules have no executable code.
-      exclude: ['src/index.ts', 'src/**/types.ts', 'src/repository/job-repository.ts'],
+      // Barrel/entry and type-only modules have no executable code.
+      exclude: [
+        'src/index.ts',
+        'src/mysql.ts',
+        'src/**/types.ts',
+        'src/repository/job-repository.ts',
+      ],
     },
   },
 });

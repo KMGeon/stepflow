@@ -179,6 +179,16 @@ export function describeJobRepositoryContract(
         if (loaded) loaded.n = 999;
         expect(await repo.loadContext('JOB', 1)).toEqual({ n: 1 });
       });
+
+      it('normalizes context with JSON semantics (Date becomes a string, undefined dropped)', async () => {
+        await repo.saveContext('JOB', 1, {
+          when: new Date('2026-06-13T00:00:00.000Z'),
+          gone: undefined,
+          kept: 1,
+        });
+        const loaded = await repo.loadContext('JOB', 1);
+        expect(loaded).toEqual({ when: '2026-06-13T00:00:00.000Z', kept: 1 });
+      });
     });
   });
 }

@@ -107,7 +107,7 @@ interface Step {
 - `run`이 throw → `FAILED`
 - `run`이 문자열 리턴 → 그 문자열이 exit status (커스텀 분기용, 예: `'EMPTY'`)
 
-**`shared` 의미**: step 간 데이터 전달 채널이자 **job-level ExecutionContext**. step 경계마다 `execution_context`에 스냅샷되고, restart 시 복원된다 (§8, §9).
+**`shared` 의미**: step 간 데이터 전달 채널이자 **job-level ExecutionContext**. step 경계마다 `execution_context`에 스냅샷되고, restart 시 복원된다 (§8, §9). 값은 **JSON 직렬화 가능**해야 한다 — Date는 문자열로, undefined/함수는 소실되며, 두 repository가 JSON으로 동일하게 정규화한다.
 
 ## 7. 실행 엔진 진입점
 
@@ -134,7 +134,7 @@ const result = await runJob(job, {
    - **`shared` 스냅샷을 `execution_context`에 영속** (restart 정합성의 핵심)
    - restart 모드에서 직전 `COMPLETED` step은 실행하지 않고 건너뜀 (시드된 `shared` 사용). 안 지나간 분기는 건드리지 않음
 5. 다음 step: 선형 기본 or `.branch` 매핑. 더 갈 곳 없으면 종료
-6. step이 `FAILED`이고 해당 분기 전이가 없으면 `JobExecution(FAILED)`, 에러 전파
+6. step이 throw하거나 `FAILED`를 반환했는데 해당 분기 전이가 없으면 `JobExecution(FAILED)`. **runJob은 throw하지 않고** `result.status='FAILED'`(+`result.error`)로 반환한다 (Spring Batch `JobLauncher` 시맨틱). 실패 step은 일관되게 `FAILED`로 기록되어 restart 기준이 된다
 7. 완주 시 `JobExecution(COMPLETED)`
 
 ### 재실행 판정 규칙 (RPA 도메인 조정)
@@ -178,7 +178,7 @@ CREATE TABLE job_execution (
   exit_status     VARCHAR(64)  NULL,
   started_at      DATETIME(3)  NOT NULL,
   ended_at        DATETIME(3)  NULL,
-  duration_ms     INT          NULL,
+  duration_ms     BIGINT       NULL,
   error           TEXT         NULL,
   items_collected INT          NULL,            -- L2: 결과 메트릭
   result_meta     JSON         NULL,            -- L2: job별 결과 메타
@@ -199,12 +199,12 @@ CREATE TABLE step_execution (
   id                BIGINT AUTO_INCREMENT PRIMARY KEY,
   job_execution_id  BIGINT       NOT NULL,
   step_name         VARCHAR(128) NOT NULL,
-  seq_no            INT          NOT NULL,       -- 실행 순서
+  seq_no            INT          NOT NULL,       -- 정의 순서(1-based). 실행/재시작 복원 순서는 id(시작순)
   status            VARCHAR(32)  NOT NULL,       -- STARTED | COMPLETED | FAILED
   exit_status       VARCHAR(64)  NULL,           -- 분기 판단/재시작 경로 복원용
   started_at        DATETIME(3)  NOT NULL,
   ended_at          DATETIME(3)  NULL,
-  duration_ms       INT          NULL,           -- L2
+  duration_ms       BIGINT       NULL,           -- L2
   read_count        INT          NOT NULL DEFAULT 0,  -- L2 (chunk 대비, v0.1엔 0)
   write_count       INT          NOT NULL DEFAULT 0,  -- L2
   skip_count        INT          NOT NULL DEFAULT 0,  -- L2

@@ -248,7 +248,10 @@ function mapStep(row: StepRow): StepExecution {
 }
 
 function toBatchStatus(value: string): JobExecution['status'] {
-  return value as JobExecution['status'];
+  if (value === 'STARTED' || value === 'COMPLETED' || value === 'FAILED') {
+    return value;
+  }
+  throw new Error(`MySqlJobRepository: unexpected batch status ${JSON.stringify(value)}`);
 }
 
 function toDate(value: Date | string): Date {

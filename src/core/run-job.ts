@@ -46,6 +46,9 @@ const noopLogger: Logger = { debug: noop, info: noop, warn: noop, error: noop };
  *
  * Never throws for in-flow step failures: the outcome is reported via
  * {@link RunJobResult.status} (Spring Batch `JobLauncher` semantics).
+ *
+ * A step "fails" when it throws or explicitly returns the `FAILED` exit status;
+ * either way the failure is recorded consistently and drives restart.
  */
 export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobResult> {
   const { page, repository, browser } = options;
@@ -103,24 +106,36 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
       logger.error(`step "${step.name}" failed`, { jobName: job.name, error: errorMessage });
     }
     const durationMs = Date.now() - startedAt;
+    // A step fails if it threw OR explicitly returned FAILED, so the persisted
+    // step status and the restart resume point stay consistent.
+    const failed = threw || exitStatus === FAILED;
 
     await repository.finishStep(
       stepExecution.id,
-      finishStepInput(threw, exitStatus, durationMs, errorMessage),
+      finishStepInput(failed, exitStatus, durationMs, errorMessage),
     );
-    await repository.saveContext('JOB', execution.id, shared);
 
     lastExitStatus = exitStatus;
     const next = job.next(step.name, exitStatus);
+    const terminalFailure = failed && next === null;
+
+    // Checkpoint `shared` only on a non-failing boundary: a terminal failed
+    // step's partial writes must not be re-seeded (and re-applied) on restart.
+    if (!terminalFailure) {
+      await repository.saveContext('JOB', execution.id, shared);
+    }
+
     if (next === null) {
-      if (threw) failure = errorMessage ?? `step "${step.name}" failed`;
+      if (failed) {
+        failure = errorMessage ?? `step "${step.name}" ended with exit status "${exitStatus}"`;
+      }
       current = null;
     } else {
       current = next;
     }
   }
 
-  const status: TerminalStatus = failure !== null || lastExitStatus === FAILED ? FAILED : COMPLETED;
+  const status: TerminalStatus = failure !== null ? FAILED : COMPLETED;
   await repository.finishExecution(execution.id, {
     status,
     exitStatus: lastExitStatus,
@@ -139,8 +154,9 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
 
 /**
  * Re-record the completed prefix of a failed run into the new execution and
- * return the name of the step to resume at (the previously failed step), or
- * `null` if there is nothing to resume.
+ * return the name of the step to resume at — the step that actually terminated
+ * the prior run (its last, failed step) — or `null`-safe fallback to the entry
+ * when the prior run cannot be resumed.
  */
 async function carryForwardPrefix(
   job: Job,
@@ -148,29 +164,31 @@ async function carryForwardPrefix(
   executionId: number,
   priorSteps: readonly StepExecution[],
 ): Promise<string | null> {
-  const failedIndex = priorSteps.findIndex((s) => s.status === FAILED);
-  if (failedIndex < 0) {
+  const terminal = priorSteps[priorSteps.length - 1];
+  // A failed run always terminates on a failed step; if the prior run is empty
+  // or did not end on a failure, there is nothing to resume — start fresh.
+  if (terminal?.status !== FAILED) {
     return job.entry;
   }
-  for (const prior of priorSteps.slice(0, failedIndex)) {
+  for (const prior of priorSteps.slice(0, priorSteps.length - 1)) {
     const { seqNo } = job.stepAt(prior.stepName);
     const carried = await repository.startStep(executionId, prior.stepName, seqNo);
     await repository.finishStep(carried.id, {
-      status: COMPLETED,
+      status: prior.status === FAILED ? FAILED : COMPLETED,
       exitStatus: prior.exitStatus ?? COMPLETED,
     });
   }
-  return priorSteps[failedIndex]?.stepName ?? job.entry;
+  return terminal.stepName;
 }
 
 function finishStepInput(
-  threw: boolean,
+  failed: boolean,
   exitStatus: ExitStatus,
   durationMs: number,
   errorMessage: string | undefined,
 ): FinishStepInput {
   return {
-    status: threw ? FAILED : COMPLETED,
+    status: failed ? FAILED : COMPLETED,
     exitStatus,
     durationMs,
     ...(errorMessage !== undefined ? { error: errorMessage } : {}),

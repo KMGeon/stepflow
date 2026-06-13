@@ -44,8 +44,12 @@ export interface StepContext {
   readonly browser?: Browser;
   /**
    * Job-level ExecutionContext: a mutable key-value bag shared across steps.
-   * Snapshotted to the repository at each step boundary and restored on restart,
-   * so steps skipped during restart still hand their data forward.
+   * Snapshotted to the repository at each successful step boundary and restored
+   * on restart, so steps skipped during restart still hand their data forward.
+   *
+   * Values MUST be JSON-serializable (the persistence boundary is JSON): a
+   * `Date` round-trips back as a string, and `undefined`/function values are
+   * dropped. Both shipped repositories normalize identically.
    */
   readonly shared: Record<string, unknown>;
   readonly logger: Logger;

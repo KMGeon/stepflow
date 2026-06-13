@@ -16,6 +16,11 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
+    "./mysql": {
+      "types": "./dist/mysql.d.ts",
+      "import": "./dist/mysql.js",
+      "require": "./dist/mysql.cjs"
+    },
     "./schema.sql": "./src/schema.sql"
   },
   "files": [
