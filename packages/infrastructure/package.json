@@ -1,0 +1,37 @@
+{
+  "name": "@stepflow/infrastructure",
+  "version": "0.1.0",
+  "description": "MySQL JobRepository adapter for stepflow.",
+  "type": "module",
+  "license": "MIT",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./schema.sql": "./src/schema.sql"
+  },
+  "files": [
+    "dist",
+    "src/schema.sql"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@stepflow/core": "^0.1.0"
+  },
+  "peerDependencies": {
+    "mysql2": ">=3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPointStrategy": "packages",
+  "entryPoints": ["../core", "../infrastructure", "../test"],
+  "out": "api",
+  "name": "stepflow API"
+}
