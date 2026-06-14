@@ -46,5 +46,5 @@ export interface StepExecution {
   readonly error: string | null;
 }
 
-/** Owner kind for an {@link ExecutionContext} row. */
+/** Owner kind for an execution-context row. */
 export type ContextOwnerType = 'JOB' | 'STEP';

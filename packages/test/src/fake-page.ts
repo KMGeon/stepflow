@@ -8,7 +8,7 @@ import type { Page } from 'puppeteer';
 export type FakePageHandlers = Record<string, unknown>;
 
 /**
- * A Puppeteer {@link Page} test double. Members you provide in `handlers` are
+ * A Puppeteer `Page` test double. Members you provide in `handlers` are
  * returned as given; any other method call throws a descriptive error, so a step
  * that unexpectedly touches the page fails loudly instead of silently no-op-ing.
  *

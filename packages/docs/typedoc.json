@@ -1,7 +1,8 @@
 {
   "$schema": "https://typedoc.org/schema.json",
-  "entryPointStrategy": "packages",
-  "entryPoints": ["../core", "../infrastructure", "../test"],
+  "entryPoints": ["../core/src/index.ts", "../infrastructure/src/index.ts", "../test/src/index.ts"],
+  "tsconfig": "./tsconfig.json",
   "out": "api",
-  "name": "stepflow API"
+  "name": "stepflow API",
+  "readme": "none"
 }
