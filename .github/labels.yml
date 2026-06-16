@@ -1,0 +1,56 @@
+# Canonical label set, synced to the repo by .github/workflows/labels.yml
+# (EndBug/label-sync). Edit here, push to main, and the repo labels update.
+
+# Type
+- name: 'type: bug'
+  color: 'd73a4a'
+  description: Something is not working
+- name: 'type: enhancement'
+  color: 'a2eeef'
+  description: New feature or request
+- name: 'type: docs'
+  color: '0075ca'
+  description: Documentation only
+- name: 'type: chore'
+  color: 'fef2c0'
+  description: Maintenance, tooling, refactor
+- name: 'dependencies'
+  color: '0366d6'
+  description: Dependency updates
+- name: 'breaking-change'
+  color: 'b60205'
+  description: Backwards-incompatible change
+
+# Area (auto-applied by the labeler)
+- name: 'area: core'
+  color: '5319e7'
+  description: '@stepflow/core'
+- name: 'area: infrastructure'
+  color: '5319e7'
+  description: '@stepflow/infrastructure (MySQL / SQLite)'
+- name: 'area: integration'
+  color: '5319e7'
+  description: '@stepflow/integration (triggers)'
+- name: 'area: puppeteer'
+  color: '5319e7'
+  description: '@stepflow/puppeteer (parallel runtime)'
+- name: 'area: bundle'
+  color: '5319e7'
+  description: 'stepflow umbrella package'
+- name: 'area: test'
+  color: '5319e7'
+  description: '@stepflow/test'
+- name: 'area: docs'
+  color: '5319e7'
+  description: Docs and README
+- name: 'area: ci'
+  color: '5319e7'
+  description: CI / workflows / repo config
+
+# Workflow
+- name: 'good first issue'
+  color: '7057ff'
+  description: Good for newcomers
+- name: 'help wanted'
+  color: '008672'
+  description: Extra attention is welcome

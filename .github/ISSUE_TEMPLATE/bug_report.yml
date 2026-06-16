@@ -1,0 +1,40 @@
+name: Bug report
+description: Report a problem with stepflow
+labels: ['type: bug']
+body:
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      options:
+        - '@stepflow/core'
+        - '@stepflow/infrastructure'
+        - '@stepflow/integration'
+        - '@stepflow/puppeteer'
+        - '@stepflow/test'
+        - 'stepflow (umbrella)'
+        - 'unsure'
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal steps or code to reproduce.
+      render: ts
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: stepflow package version, Node version, OS.
+    validations:
+      required: true
