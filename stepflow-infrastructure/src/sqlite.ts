@@ -123,7 +123,7 @@ export class SqliteJobRepository implements JobRepository {
       .prepare(
         `UPDATE job_execution
          SET status = ?, exit_status = ?, ended_at = ?,
-             duration_ms = CAST((julianday(?) - julianday(started_at)) * 86400000 AS INTEGER),
+             duration_ms = CAST(round((julianday(?) - julianday(started_at)) * 86400000) AS INTEGER),
              error = ?, items_collected = ?, result_meta = ?
          WHERE id = ?`,
       )
@@ -169,7 +169,7 @@ export class SqliteJobRepository implements JobRepository {
       .prepare(
         `UPDATE step_execution
          SET status = ?, exit_status = ?, ended_at = ?,
-             duration_ms = COALESCE(?, CAST((julianday(?) - julianday(started_at)) * 86400000 AS INTEGER)),
+             duration_ms = COALESCE(?, CAST(round((julianday(?) - julianday(started_at)) * 86400000) AS INTEGER)),
              read_count = COALESCE(?, read_count),
              write_count = COALESCE(?, write_count),
              skip_count = COALESCE(?, skip_count),

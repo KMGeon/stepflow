@@ -1,4 +1,5 @@
 // @stepflow/infrastructure — JobRepository adapters backed by external systems.
 // Kept out of @stepflow/core so consumers who only use the in-memory repository
-// never pull mysql2 into their build (mysql2 is a peer dependency here).
+// never pull mysql2/better-sqlite3 into their build (both are peer dependencies here).
 export { MySqlJobRepository } from './mysql';
+export { SqliteJobRepository } from './sqlite';
