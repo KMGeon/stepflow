@@ -8,6 +8,10 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - 'dependencies'
+    # Major bumps are breaking — handle them deliberately, not via auto-PRs.
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
     groups:
       tooling:
         patterns:
