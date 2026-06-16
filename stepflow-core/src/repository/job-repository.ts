@@ -25,6 +25,8 @@ export interface FinishStepInput {
   readonly error?: string;
   readonly durationMs?: number;
   readonly counts?: Partial<StepCounts>;
+  /** Number of times the step body ran (1 + retries). Defaults to the persisted value when omitted. */
+  readonly attempts?: number;
 }
 
 /**

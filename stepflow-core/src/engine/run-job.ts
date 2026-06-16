@@ -7,6 +7,16 @@ import { computeJobKey } from '../metadata/job-key';
 import { COMPLETED, FAILED } from '../types';
 import type { BatchStatus, ExitStatus, JobParameters, Logger, StepContext } from '../types';
 import type { JobLifecycleContext, JobListener, StepInfo, StepOutcome } from './listeners';
+import { backoffDelay } from './retry';
+import type { RetryInfo } from './retry';
+
+/** Awaitable delay used between retry attempts; injectable so tests need not really wait. */
+export type Delay = (ms: number) => Promise<void>;
+
+const realDelay: Delay = (ms) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 
 /** Inputs for a single {@link runJob} call. */
 export interface RunJobOptions {
@@ -24,6 +34,8 @@ export interface RunJobOptions {
   readonly restart?: boolean;
   /** Lifecycle observers. Fired in array order; a throwing listener is isolated. Defaults to none. */
   readonly listeners?: readonly JobListener[];
+  /** Override the inter-retry delay (e.g. a no-op in tests). Defaults to a real `setTimeout` wait. */
+  readonly delay?: Delay;
 }
 
 /** Outcome of a {@link runJob} call. */
@@ -74,6 +86,7 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
   const params: JobParameters = options.params ?? {};
   const allowRestart = options.restart !== false;
   const listeners = options.listeners ?? [];
+  const delay = options.delay ?? realDelay;
 
   const jobKey = computeJobKey(job.name, params);
   const instance = await repository.resolveInstance(job.name, jobKey);
@@ -128,18 +141,50 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
     await notify(listeners, logger, (l) => l.beforeStep?.(ctx, stepInfo));
 
     const startedAt = Date.now();
-    let exitStatus: ExitStatus;
+    const policy = job.retryPolicy(step.name);
+    const maxAttempts = Math.max(1, policy?.maxAttempts ?? 1);
+    let exitStatus: ExitStatus = COMPLETED;
     let threw = false;
     let caughtError: unknown;
     let errorMessage: string | undefined;
-    try {
-      const returned = await step.run(ctx);
-      exitStatus = typeof returned === 'string' ? returned : COMPLETED;
-    } catch (error) {
-      threw = true;
-      caughtError = error;
-      exitStatus = FAILED;
-      errorMessage = error instanceof Error ? error.message : String(error);
+    let attempt = 0;
+    for (;;) {
+      attempt += 1;
+      threw = false;
+      caughtError = undefined;
+      errorMessage = undefined;
+      try {
+        const returned = await step.run(ctx);
+        exitStatus = typeof returned === 'string' ? returned : COMPLETED;
+      } catch (error) {
+        threw = true;
+        caughtError = error;
+        exitStatus = FAILED;
+        errorMessage = error instanceof Error ? error.message : String(error);
+      }
+      // Retry only thrown errors (an explicit FAILED return is an intended
+      // outcome), within the attempt budget, and when the predicate allows.
+      const retryable =
+        threw &&
+        attempt < maxAttempts &&
+        (policy?.retryOn === undefined || policy.retryOn(caughtError));
+      if (!retryable) {
+        break;
+      }
+      const nextDelayMs = backoffDelay(policy?.backoff, attempt);
+      const retryInfo: RetryInfo = {
+        stepName: step.name,
+        attempt,
+        maxAttempts,
+        error: errorMessage ?? String(caughtError),
+        nextDelayMs,
+      };
+      await notify(listeners, logger, (l) => l.onRetry?.(ctx, stepInfo, retryInfo));
+      if (nextDelayMs > 0) {
+        await delay(nextDelayMs);
+      }
+    }
+    if (threw) {
       logger.error(`step "${step.name}" failed`, { jobName: job.name, error: errorMessage });
     }
     const durationMs = Date.now() - startedAt;
@@ -149,7 +194,7 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
 
     await repository.finishStep(
       stepExecution.id,
-      finishStepInput(failed, exitStatus, durationMs, errorMessage),
+      finishStepInput(failed, exitStatus, durationMs, errorMessage, attempt),
     );
 
     const outcome: StepOutcome = {
@@ -239,11 +284,13 @@ function finishStepInput(
   exitStatus: ExitStatus,
   durationMs: number,
   errorMessage: string | undefined,
+  attempts: number,
 ): FinishStepInput {
   return {
     status: failed ? FAILED : COMPLETED,
     exitStatus,
     durationMs,
+    attempts,
     ...(errorMessage !== undefined ? { error: errorMessage } : {}),
   };
 }

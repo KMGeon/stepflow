@@ -115,7 +115,7 @@ export function describeJobRepositoryContract(
         expect(steps.map((s) => s.stepName)).toEqual(['b', 'a']);
       });
 
-      it('finishStep records status, exit status, counts, and duration', async () => {
+      it('finishStep records status, exit status, counts, duration, and attempts', async () => {
         const inst = await repo.resolveInstance('job', 'k');
         const exec = await repo.createExecution(inst.id, {});
         const step = await repo.startStep(exec.id, 'login', 1);
@@ -124,6 +124,7 @@ export function describeJobRepositoryContract(
           exitStatus: 'COMPLETED',
           durationMs: 42,
           counts: { readCount: 10 },
+          attempts: 3,
         });
         const [persisted] = await repo.findStepExecutions(exec.id);
         expect(persisted?.status).toBe('COMPLETED');
@@ -131,6 +132,14 @@ export function describeJobRepositoryContract(
         expect(persisted?.durationMs).toBe(42);
         expect(persisted?.counts.readCount).toBe(10);
         expect(persisted?.counts.writeCount).toBe(0);
+        expect(persisted?.attempts).toBe(3);
+      });
+
+      it('startStep defaults attempts to 1', async () => {
+        const inst = await repo.resolveInstance('job', 'k');
+        const exec = await repo.createExecution(inst.id, {});
+        const step = await repo.startStep(exec.id, 'login', 1);
+        expect(step.attempts).toBe(1);
       });
 
       it('scopes step executions to their execution', async () => {

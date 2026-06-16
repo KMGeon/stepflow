@@ -32,6 +32,7 @@ interface StepRecord {
   endedAt: Date | null;
   durationMs: number | null;
   counts: StepCounts;
+  attempts: number;
   error: string | null;
 }
 
@@ -124,6 +125,7 @@ export class InMemoryJobRepository implements JobRepository {
       endedAt: null,
       durationMs: null,
       counts: { ...ZERO_COUNTS },
+      attempts: 1,
       error: null,
     };
     const steps = this.#stepsByExecution.get(executionId) ?? [];
@@ -149,6 +151,7 @@ export class InMemoryJobRepository implements JobRepository {
       writeCount: input.counts?.writeCount ?? record.counts.writeCount,
       skipCount: input.counts?.skipCount ?? record.counts.skipCount,
     };
+    record.attempts = input.attempts ?? record.attempts;
     return Promise.resolve();
   }
 
@@ -222,6 +225,7 @@ function snapshotStep(record: StepRecord): StepExecution {
     endedAt: record.endedAt ? new Date(record.endedAt) : null,
     durationMs: record.durationMs,
     counts: { ...record.counts },
+    attempts: record.attempts,
     error: record.error,
   };
 }

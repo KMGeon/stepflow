@@ -32,6 +32,8 @@ export type { RunJobOptions, RunJobResult } from './engine/run-job';
 
 export type { JobListener, JobLifecycleContext, StepInfo, StepOutcome } from './engine/listeners';
 
+export type { RetryPolicy, BackoffPolicy, RetryInfo } from './engine/retry';
+
 export { InMemoryJobRepository } from './repository/in-memory';
 // MySqlJobRepository is exported from the @stepflow/infrastructure package so @stepflow/core
 // entry never imports mysql2 types (mysql2 is an optional peer dependency).

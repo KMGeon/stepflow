@@ -1,4 +1,5 @@
 import type { RunJobResult } from './run-job';
+import type { RetryInfo } from './retry';
 import type { ExitStatus, JobParameters, Logger, StepContext } from '../types';
 
 /** Job-scoped context handed to {@link JobListener.beforeJob}/{@link JobListener.afterJob}. */
@@ -43,4 +44,6 @@ export interface JobListener {
   beforeStep?(ctx: StepContext, step: StepInfo): void | Promise<void>;
   afterStep?(ctx: StepContext, step: StepInfo, outcome: StepOutcome): void | Promise<void>;
   onStepError?(ctx: StepContext, step: StepInfo, error: unknown): void | Promise<void>;
+  /** Fired after a step attempt fails but will be retried (see {@link RetryInfo}). */
+  onRetry?(ctx: StepContext, step: StepInfo, info: RetryInfo): void | Promise<void>;
 }

@@ -38,6 +38,7 @@ interface StepRow extends RowDataPacket {
   read_count: number | string;
   write_count: number | string;
   skip_count: number | string;
+  attempts: number | string;
   error: string | null;
 }
 
@@ -149,6 +150,7 @@ export class MySqlJobRepository implements JobRepository {
       endedAt: null,
       durationMs: null,
       counts: { readCount: 0, writeCount: 0, skipCount: 0 },
+      attempts: 1,
       error: null,
     };
   }
@@ -162,6 +164,7 @@ export class MySqlJobRepository implements JobRepository {
            read_count = COALESCE(?, read_count),
            write_count = COALESCE(?, write_count),
            skip_count = COALESCE(?, skip_count),
+           attempts = COALESCE(?, attempts),
            error = ?
        WHERE id = ?`,
       [
@@ -173,6 +176,7 @@ export class MySqlJobRepository implements JobRepository {
         input.counts?.readCount ?? null,
         input.counts?.writeCount ?? null,
         input.counts?.skipCount ?? null,
+        input.attempts ?? null,
         input.error ?? null,
         stepExecutionId,
       ],
@@ -245,6 +249,7 @@ function mapStep(row: StepRow): StepExecution {
     endedAt: row.ended_at === null ? null : toDate(row.ended_at),
     durationMs: row.duration_ms === null ? null : Number(row.duration_ms),
     counts,
+    attempts: Number(row.attempts),
     error: row.error,
   };
 }

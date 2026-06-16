@@ -1,4 +1,5 @@
 import { JobDefinitionError } from '../errors';
+import type { RetryPolicy } from '../engine/retry';
 import type { ExitStatus, Step, StepRun } from '../types';
 
 /** A step paired with its 1-based sequence number. */
@@ -17,6 +18,8 @@ export interface Job {
   next(stepName: string, exitStatus: ExitStatus): string | null;
   /** Look up a step and its sequence number; throws if the step is unknown. */
   stepAt(stepName: string): StepLocation;
+  /** Retry policy registered for a step, or `null` if it has none. */
+  retryPolicy(stepName: string): RetryPolicy | null;
 }
 
 /** Fluent surface for assembling a {@link Job}. */
@@ -25,6 +28,8 @@ export interface JobBuilder {
   step(name: string, run: StepRun): JobBuilder;
   /** Override transitions for a step's exit statuses (linear COMPLETED is the default). */
   branch(stepName: string, mapping: Readonly<Record<string, string>>): JobBuilder;
+  /** Attach a retry policy to a step. Only thrown errors are retried (not explicit FAILED returns). */
+  retry(stepName: string, policy: RetryPolicy): JobBuilder;
   /** Validate the flow graph and produce an immutable {@link Job}. */
   build(): Job;
 }
@@ -33,6 +38,7 @@ class JobBuilderImpl implements JobBuilder {
   readonly #name: string;
   readonly #steps: Step[] = [];
   readonly #branches = new Map<string, Record<string, string>>();
+  readonly #retries = new Map<string, RetryPolicy>();
 
   constructor(name: string) {
     this.#name = name;
@@ -49,6 +55,11 @@ class JobBuilderImpl implements JobBuilder {
     return this;
   }
 
+  retry(stepName: string, policy: RetryPolicy): this {
+    this.#retries.set(stepName, policy);
+    return this;
+  }
+
   build(): Job {
     const [first] = this.#steps;
     if (first === undefined) {
@@ -59,7 +70,16 @@ class JobBuilderImpl implements JobBuilder {
     const transitions = this.#buildTransitions(locations);
     this.#assertAllReachable(first.name, transitions, locations);
 
+    for (const stepName of this.#retries.keys()) {
+      if (!locations.has(stepName)) {
+        throw new JobDefinitionError(
+          `Job "${this.#name}" sets retry on unknown step "${stepName}"`,
+        );
+      }
+    }
+
     const name = this.#name;
+    const retries = new Map(this.#retries);
     const job: Job = {
       name,
       steps: Object.freeze(this.#steps.slice()),
@@ -73,6 +93,9 @@ class JobBuilderImpl implements JobBuilder {
           throw new JobDefinitionError(`Job "${name}" has no step "${stepName}"`);
         }
         return location;
+      },
+      retryPolicy(stepName: string): RetryPolicy | null {
+        return retries.get(stepName) ?? null;
       },
     };
     return Object.freeze(job);

@@ -43,6 +43,8 @@ export interface StepExecution {
   readonly endedAt: Date | null;
   readonly durationMs: number | null;
   readonly counts: StepCounts;
+  /** How many times the step body ran (1 + retries). */
+  readonly attempts: number;
   readonly error: string | null;
 }
 

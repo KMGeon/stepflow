@@ -44,9 +44,10 @@ CREATE TABLE IF NOT EXISTS step_execution (
   started_at        DATETIME(3)  NOT NULL,
   ended_at          DATETIME(3)  NULL,
   duration_ms       BIGINT       NULL,
-  read_count        INT          NOT NULL DEFAULT 0, -- L2 (chunk; 0 in v0.1)
+  read_count        INT          NOT NULL DEFAULT 0, -- L2 (chunk)
   write_count       INT          NOT NULL DEFAULT 0,
   skip_count        INT          NOT NULL DEFAULT 0,
+  attempts          INT          NOT NULL DEFAULT 1, -- runs of the step body (1 + retries)
   error             TEXT         NULL,
   INDEX idx_step_execution (job_execution_id, id),
   CONSTRAINT fk_step_execution FOREIGN KEY (job_execution_id) REFERENCES job_execution (id)
@@ -59,3 +60,6 @@ CREATE TABLE IF NOT EXISTS execution_context (
   updated_at  DATETIME(3) NOT NULL,
   PRIMARY KEY (owner_type, owner_id)
 );
+
+-- Migration for databases created before the `attempts` column existed (v0.1 -> retry):
+--   ALTER TABLE step_execution ADD COLUMN attempts INT NOT NULL DEFAULT 1 AFTER skip_count;
