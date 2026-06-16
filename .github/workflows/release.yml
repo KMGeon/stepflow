@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     branches: [main]
+  workflow_dispatch: # manual trigger for the initial release / on-demand publish
 
 permissions:
   contents: write
