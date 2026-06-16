@@ -33,9 +33,9 @@ const result = await runJob(ordersSync, {
   StepExecution and ExecutionContext.
 - **You own runtime resources**: stepflow never launches a browser or owns a DB
   connection. Inject the Puppeteer `page` and the repository you choose.
-- **Install only what you use**: every heavy dependency (`puppeteer`, `mysql2`,
-  `better-sqlite3`, `vitest`) is an _optional_ peer — installing `@stepflow/core`
-  pulls in nothing else.
+- **Install only what you use**: every heavy backend (`puppeteer`, `mysql2`,
+  `better-sqlite3`) is an _optional_ peer — installing `@stepflow/core` has zero
+  dependencies and pulls in nothing else.
 - **Batteries when you want them**: retry policies, chunk-oriented steps,
   lifecycle listeners, durable MySQL/SQLite repositories, schedule triggers, and
   a bounded parallel Puppeteer runtime — each in its own package.
@@ -100,7 +100,7 @@ const page = await browser.newPage();
 const result = await runJob(ordersSync, {
   page,
   repository: new InMemoryJobRepository(),
-  params: { username: process.env.USERNAME, password: process.env.PASSWORD },
+  params: { username: process.env.USERNAME ?? '', password: process.env.PASSWORD ?? '' },
 });
 
 await browser.close();
