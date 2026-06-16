@@ -53,6 +53,14 @@ export interface StepContext {
    */
   readonly shared: Record<string, unknown>;
   readonly logger: Logger;
+  /**
+   * Cooperative cancellation signal (a standard `AbortSignal`, not a Puppeteer
+   * type). Present when the caller supplies one (e.g. a parallel pool enforcing a
+   * per-job timeout). Steps should forward it to Puppeteer calls that accept a
+   * `signal` so a deadline aborts them promptly; stepflow itself never cancels or
+   * closes the browser — that is the caller's responsibility.
+   */
+  readonly signal?: AbortSignal;
 }
 
 /** The body of a step. */

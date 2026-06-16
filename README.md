@@ -1,106 +1,204 @@
 # stepflow
 
-> Declarative Puppeteer RPA batch runtime with Spring Batch-style metadata, restart, and execution history.
+[![npm](https://img.shields.io/npm/v/@stepflow/core?label=%40stepflow%2Fcore)](https://www.npmjs.com/package/@stepflow/core)
+[![license](https://img.shields.io/npm/l/@stepflow/core)](LICENSE)
+[![node](https://img.shields.io/badge/node-%3E%3D20-339933)](package.json)
+[![typescript](https://img.shields.io/badge/TypeScript-strict-3178c6)](tsconfig.base.json)
 
-stepflow lets you define a browser automation **job** as a chain of **steps**, run
-it on an injected Puppeteer `page`, and persist every run's metadata so a failed
-job can **restart from the step it failed on** — skipping the work that already
-succeeded. The model mirrors Spring Batch (Job / Step / JobRepository /
-JobInstance / ExecutionContext), adapted to the browser-RPA domain.
+Declarative Puppeteer RPA jobs with Spring Batch-style metadata, restart, and
+execution history.
 
-## Packages
+`stepflow` helps you turn fragile browser automation scripts into restartable
+batch jobs. Define a job as named steps, run it against a Puppeteer `page`, and
+persist execution metadata so failed jobs resume from the step that failed
+instead of repeating work that already completed.
 
-| Package                    | What it is                                                                                     | Published |
-| -------------------------- | ---------------------------------------------------------------------------------------------- | --------- |
-| `@stepflow/core`           | Builder, execution engine, metadata model, and the in-memory `JobRepository`. No runtime deps. | ✅        |
-| `@stepflow/infrastructure` | MySQL `JobRepository` adapter (`mysql2` peer) + schema.                                        | ✅        |
-| `@stepflow/test`           | Test utilities: the `JobRepository` contract suite and a Puppeteer `Page` double.              | ✅        |
-| `@stepflow/samples`        | Generic reference jobs.                                                                        | private   |
-| `@stepflow/docs`           | Design docs and generated API reference.                                                       | private   |
+```ts
+const result = await runJob(ordersSync, {
+  page,
+  repository,
+  params: { since: '2026-06-01' },
+});
 
-You only install what you use. The default path — `@stepflow/core` with the
-built-in in-memory repository — has **no database dependency**.
+// { instanceId, executionId, status, exitStatus, restarted }
+```
+
+## Why stepflow?
+
+- **Restart from failure**: failed executions resume from the failed step with
+  shared execution context restored.
+- **Spring Batch model, browser-first**: Job, Step, JobRepository, JobInstance,
+  JobExecution, StepExecution, and ExecutionContext adapted for Puppeteer RPA.
+- **You own runtime resources**: stepflow never launches a browser or owns a DB
+  connection. Inject the Puppeteer `page` and repository you want.
+- **Composable packages**: install only the core runtime, then add persistence,
+  triggers, or test utilities when needed.
+- **TypeScript-native**: strict types, dual ESM/CJS output, and small public
+  APIs.
 
 ## Install
 
 ```sh
 npm install @stepflow/core puppeteer
-# add persistence when you need it:
+```
+
+Add durable metadata storage when you need restart across processes:
+
+```sh
 npm install @stepflow/infrastructure mysql2
 ```
 
-`puppeteer` and `mysql2` are peer dependencies — stepflow never launches a
-browser or owns a connection; you inject the `page` and the connection pool.
+Add trigger adapters for manual or scheduled runs:
 
-## Quick start
+```sh
+npm install @stepflow/integration
+```
+
+`puppeteer` and `mysql2` are peer dependencies. Your application owns the
+browser lifecycle and database connection pool.
+
+## Quick Start
 
 ```ts
 import puppeteer from 'puppeteer';
+import { defineJob, InMemoryJobRepository, runJob } from '@stepflow/core';
 
-import { defineJob, runJob, InMemoryJobRepository } from '@stepflow/core';
-
-const job = defineJob('orders_sync')
+const ordersSync = defineJob('orders_sync')
   .step('login', async (ctx) => {
     await ctx.page.goto('https://example.com/login');
-    // ...
+    await ctx.page.type('#username', String(ctx.params.username));
+    await ctx.page.type('#password', String(ctx.params.password));
+    await ctx.page.click('button[type="submit"]');
+    await ctx.page.waitForNavigation();
   })
   .step('parse', async (ctx) => {
     const count = await ctx.page.$$eval('#orders tr', (rows) => rows.length);
     ctx.shared.count = count;
-    return count > 0 ? 'COMPLETED' : 'EMPTY'; // custom exit status drives branching
+
+    return count > 0 ? 'COMPLETED' : 'EMPTY';
   })
   .step('confirm', async (ctx) => {
-    /* ... */
+    await ctx.page.click('#confirm');
+    await ctx.page.waitForSelector('#confirm-done');
   })
   .step('cleanup', async (ctx) => {
-    /* ... */
+    await ctx.page.click('#logout');
   })
-  .branch('parse', { EMPTY: 'cleanup' }) // only the non-linear edge needs declaring
+  .branch('parse', { EMPTY: 'cleanup' })
   .build();
 
 const browser = await puppeteer.launch();
 const page = await browser.newPage();
 
-const result = await runJob(job, {
-  page, // you own the browser; stepflow drives the page
+const result = await runJob(ordersSync, {
+  page,
   repository: new InMemoryJobRepository(),
-  params: { since: '2026-06-01' },
+  params: {
+    username: process.env.USERNAME,
+    password: process.env.PASSWORD,
+    since: '2026-06-01',
+  },
 });
-// result: { instanceId, executionId, status, exitStatus, restarted }
+
+await browser.close();
+
+console.log(result.status, result.exitStatus);
 ```
 
-Steps run in registration order on `COMPLETED`; `.branch()` overrides transitions
-for specific exit statuses. A step **fails** when it throws or returns the
-`FAILED` exit status. `runJob` does not throw on step failure — it returns a
-result with `status: 'FAILED'` (Spring Batch `JobLauncher` semantics).
+Steps run in registration order when they return `COMPLETED`. A `.branch()`
+overrides the next step for specific exit statuses. A step fails when it throws
+or returns `FAILED`; `runJob` returns a failed result instead of throwing for
+job-level failure.
 
-### Persistence and restart
+## Durable Restart
+
+Use `@stepflow/infrastructure` when executions need to survive process restarts.
 
 ```ts
 import { MySqlJobRepository } from '@stepflow/infrastructure';
 import mysql from 'mysql2/promise';
 
-const repository = new MySqlJobRepository(mysql.createPool(process.env.MYSQL_URL));
-// Apply @stepflow/infrastructure/schema.sql once, then:
-await runJob(job, { page, repository, params: { since: '2026-06-01' } });
+const pool = mysql.createPool(process.env.MYSQL_URL);
+const repository = new MySqlJobRepository(pool);
+
+await runJob(ordersSync, {
+  page,
+  repository,
+  params: { since: '2026-06-01' },
+});
 ```
 
-Re-running a job with the same identifying `params` resumes a failed run from
-the step it failed on, restoring the shared `ExecutionContext`. See
-[the design doc](stepflow-docs/design.md) for the full restart model and the
-schema.
+Apply `@stepflow/infrastructure/schema.sql` once before using the MySQL
+repository. Re-running the same job with the same identifying `params` resumes
+the previous failed instance from the failed step and restores the shared
+`ExecutionContext`.
+
+## Triggers
+
+`@stepflow/integration` provides the trigger seam for deciding when a job runs.
+Triggers do not know how to execute a job; they receive a `run` function from
+your application.
+
+```ts
+import { intervalTrigger } from '@stepflow/integration';
+
+const trigger = intervalTrigger(60_000);
+
+const handle = await trigger.start(() =>
+  runJob(ordersSync, {
+    page,
+    repository,
+    params: { since: '2026-06-01' },
+  }),
+);
+
+// later
+await handle.stop();
+```
+
+Use `createManualTrigger()` for tests, CLI commands, or hand-operated runs.
+
+## Packages
+
+| Package                    | Purpose                                                                      | Published |
+| -------------------------- | ---------------------------------------------------------------------------- | --------- |
+| `@stepflow/core`           | Job builder, execution engine, metadata model, and in-memory repository.     | yes       |
+| `@stepflow/infrastructure` | MySQL `JobRepository` adapter and schema.                                    | yes       |
+| `@stepflow/integration`    | Trigger contracts plus manual and interval trigger implementations.          | yes       |
+| `@stepflow/test`           | Repository contract suite, recording listener, and Puppeteer `Page` doubles. | yes       |
+| `@stepflow/samples`        | Reference jobs used by the monorepo.                                         | private   |
+| `@stepflow/docs`           | Design docs and generated API reference.                                     | private   |
 
 ## Development
 
-This is an npm-workspaces monorepo.
+This repository is an npm workspaces monorepo.
 
 ```sh
 npm install
-npm run typecheck   # all packages
-npm run lint
-npm run test        # all packages (MySQL tests are opt-in via MYSQL_URL)
-npm run build       # dual ESM + CJS + d.ts per package
+npm run check          # typecheck + lint + test
+npm run build          # dual ESM/CJS + declaration output
+npm run test:coverage  # coverage thresholds where applicable
+npm run format:check
 ```
+
+MySQL repository tests are opt-in:
+
+```sh
+MYSQL_URL='mysql://user:pass@localhost:3306/stepflow' npm run test -w @stepflow/infrastructure
+```
+
+Release metadata is managed with Changesets:
+
+```sh
+npm run changeset
+npm run version-packages
+npm run release
+```
+
+## Design
+
+Read [the design doc](stepflow-docs/design.md) for the restart model, metadata
+schema, and Spring Batch mapping.
 
 ## License
 

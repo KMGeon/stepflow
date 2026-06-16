@@ -37,6 +37,8 @@ export interface RunJobOptions {
   readonly listeners?: readonly JobListener[];
   /** Override the inter-retry delay (e.g. a no-op in tests). Defaults to a real `setTimeout` wait. */
   readonly delay?: Delay;
+  /** Cooperative cancellation signal, exposed to steps via {@link StepContext.signal}. */
+  readonly signal?: AbortSignal;
 }
 
 /** Outcome of a {@link runJob} call. */
@@ -132,6 +134,7 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
     shared,
     logger,
     browser,
+    signal: options.signal,
   });
 
   const jobCtx: JobLifecycleContext = {
@@ -334,8 +337,9 @@ function buildContext(parts: {
   shared: Record<string, unknown>;
   logger: Logger;
   browser: Browser | undefined;
+  signal: AbortSignal | undefined;
 }): StepContext {
-  const base = {
+  return {
     jobName: parts.jobName,
     instanceId: parts.instanceId,
     executionId: parts.executionId,
@@ -343,6 +347,7 @@ function buildContext(parts: {
     page: parts.page,
     shared: parts.shared,
     logger: parts.logger,
+    ...(parts.browser !== undefined ? { browser: parts.browser } : {}),
+    ...(parts.signal !== undefined ? { signal: parts.signal } : {}),
   };
-  return parts.browser !== undefined ? { ...base, browser: parts.browser } : base;
 }

@@ -9,6 +9,12 @@ export default defineConfig({
       include: ['src/**/*.ts'],
       // Barrel/entry and type-only modules have no executable code.
       exclude: ['src/index.ts', 'src/repository/job-repository.ts', 'src/metadata/metadata.ts'],
+      thresholds: {
+        lines: 80,
+        functions: 80,
+        branches: 75,
+        statements: 80,
+      },
     },
   },
 });

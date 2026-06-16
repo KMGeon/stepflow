@@ -37,7 +37,8 @@
     "build": "tsup",
     "prepack": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "if [ -z \"$MYSQL_URL\" ]; then echo 'Skipping @stepflow/infrastructure coverage: MYSQL_URL is not set.'; else vitest run --coverage; fi"
   },
   "dependencies": {
     "@stepflow/core": "^0.2.0"
