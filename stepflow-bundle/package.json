@@ -1,0 +1,61 @@
+{
+  "name": "stepflow",
+  "version": "0.2.0",
+  "description": "Umbrella package for stepflow: installs and re-exports @stepflow/core, @stepflow/puppeteer, and @stepflow/infrastructure in one dependency.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KMGeon/stepflow.git",
+    "directory": "stepflow-bundle"
+  },
+  "homepage": "https://github.com/KMGeon/stepflow#readme",
+  "bugs": "https://github.com/KMGeon/stepflow/issues",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "prepack": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@stepflow/core": "^0.2.0",
+    "@stepflow/infrastructure": "^0.2.0",
+    "@stepflow/puppeteer": "^0.2.0"
+  },
+  "peerDependencies": {
+    "better-sqlite3": ">=11",
+    "mysql2": ">=3",
+    "puppeteer": ">=22"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    },
+    "mysql2": {
+      "optional": true
+    },
+    "puppeteer": {
+      "optional": true
+    }
+  }
+}
