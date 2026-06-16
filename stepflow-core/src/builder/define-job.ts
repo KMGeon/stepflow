@@ -1,17 +1,17 @@
 import { JobDefinitionError } from '../errors';
 import type { RetryPolicy } from '../engine/retry';
-import type { ExitStatus, Step, StepRun } from '../types';
+import type { ChunkStep, ChunkStepConfig, ExitStatus, JobStep, StepRun } from '../types';
 
 /** A step paired with its 1-based sequence number. */
 export interface StepLocation {
-  readonly step: Step;
+  readonly step: JobStep;
   readonly seqNo: number;
 }
 
 /** An immutable, validated job definition produced by `defineJob(...).build()`. */
 export interface Job {
   readonly name: string;
-  readonly steps: readonly Step[];
+  readonly steps: readonly JobStep[];
   /** Name of the entry step (the first registered step). */
   readonly entry: string;
   /** Next step for a given step's exit status, or `null` to end the job. */
@@ -26,6 +26,8 @@ export interface Job {
 export interface JobBuilder {
   /** Register a step. The first registered step becomes the entry point. */
   step(name: string, run: StepRun): JobBuilder;
+  /** Register a chunk-oriented step (read → process → write in committed chunks). */
+  chunkStep<T, R>(name: string, config: ChunkStepConfig<T, R>): JobBuilder;
   /** Override transitions for a step's exit statuses (linear COMPLETED is the default). */
   branch(stepName: string, mapping: Readonly<Record<string, string>>): JobBuilder;
   /** Attach a retry policy to a step. Only thrown errors are retried (not explicit FAILED returns). */
@@ -36,7 +38,7 @@ export interface JobBuilder {
 
 class JobBuilderImpl implements JobBuilder {
   readonly #name: string;
-  readonly #steps: Step[] = [];
+  readonly #steps: JobStep[] = [];
   readonly #branches = new Map<string, Record<string, string>>();
   readonly #retries = new Map<string, RetryPolicy>();
 
@@ -46,6 +48,20 @@ class JobBuilderImpl implements JobBuilder {
 
   step(name: string, run: StepRun): this {
     this.#steps.push({ name, run });
+    return this;
+  }
+
+  chunkStep<T, R>(name: string, config: ChunkStepConfig<T, R>): this {
+    // The stored form is type-erased; item/result types are preserved only at the
+    // call site. Item-type variance prevents a direct cast, so erase via unknown.
+    const chunk = {
+      name,
+      chunkSize: config.chunkSize,
+      reader: config.reader,
+      ...(config.processor !== undefined ? { processor: config.processor } : {}),
+      writer: config.writer,
+    } as unknown as ChunkStep;
+    this.#steps.push(chunk);
     return this;
   }
 

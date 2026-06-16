@@ -1,7 +1,7 @@
 import type { Browser, Page } from 'puppeteer';
 
 import type { FinishStepInput, JobRepository } from '../repository/job-repository';
-import type { StepExecution } from '../metadata/metadata';
+import type { StepCounts, StepExecution } from '../metadata/metadata';
 import type { Job } from '../builder/define-job';
 import { computeJobKey } from '../metadata/job-key';
 import { COMPLETED, FAILED } from '../types';
@@ -9,6 +9,7 @@ import type { BatchStatus, ExitStatus, JobParameters, Logger, StepContext } from
 import type { JobLifecycleContext, JobListener, StepInfo, StepOutcome } from './listeners';
 import { backoffDelay } from './retry';
 import type { RetryInfo } from './retry';
+import { isChunkStep, runChunkStep } from './chunk';
 
 /** Awaitable delay used between retry attempts; injectable so tests need not really wait. */
 export type Delay = (ms: number) => Promise<void>;
@@ -141,48 +142,64 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
     await notify(listeners, logger, (l) => l.beforeStep?.(ctx, stepInfo));
 
     const startedAt = Date.now();
-    const policy = job.retryPolicy(step.name);
-    const maxAttempts = Math.max(1, policy?.maxAttempts ?? 1);
     let exitStatus: ExitStatus = COMPLETED;
     let threw = false;
     let caughtError: unknown;
     let errorMessage: string | undefined;
-    let attempt = 0;
-    for (;;) {
-      attempt += 1;
-      threw = false;
-      caughtError = undefined;
-      errorMessage = undefined;
-      try {
-        const returned = await step.run(ctx);
-        exitStatus = typeof returned === 'string' ? returned : COMPLETED;
-      } catch (error) {
-        threw = true;
-        caughtError = error;
-        exitStatus = FAILED;
-        errorMessage = error instanceof Error ? error.message : String(error);
+    let attempts = 1;
+    let chunkCounts: Partial<StepCounts> | undefined;
+
+    if (isChunkStep(step)) {
+      const chunkResult = await runChunkStep(step, ctx, {
+        persistCheckpoint: () => repository.saveContext('JOB', execution.id, shared),
+        emitChunk: (info) => notify(listeners, logger, (l) => l.onChunk?.(ctx, stepInfo, info)),
+      });
+      exitStatus = chunkResult.exitStatus;
+      threw = chunkResult.threw;
+      caughtError = chunkResult.caughtError;
+      errorMessage = chunkResult.errorMessage;
+      chunkCounts = { readCount: chunkResult.readCount, writeCount: chunkResult.writeCount };
+    } else {
+      const policy = job.retryPolicy(step.name);
+      const maxAttempts = Math.max(1, policy?.maxAttempts ?? 1);
+      let attempt = 0;
+      for (;;) {
+        attempt += 1;
+        threw = false;
+        caughtError = undefined;
+        errorMessage = undefined;
+        try {
+          const returned = await step.run(ctx);
+          exitStatus = typeof returned === 'string' ? returned : COMPLETED;
+        } catch (error) {
+          threw = true;
+          caughtError = error;
+          exitStatus = FAILED;
+          errorMessage = error instanceof Error ? error.message : String(error);
+        }
+        // Retry only thrown errors (an explicit FAILED return is an intended
+        // outcome), within the attempt budget, and when the predicate allows.
+        const retryable =
+          threw &&
+          attempt < maxAttempts &&
+          (policy?.retryOn === undefined || policy.retryOn(caughtError));
+        if (!retryable) {
+          break;
+        }
+        const nextDelayMs = backoffDelay(policy?.backoff, attempt);
+        const retryInfo: RetryInfo = {
+          stepName: step.name,
+          attempt,
+          maxAttempts,
+          error: errorMessage ?? String(caughtError),
+          nextDelayMs,
+        };
+        await notify(listeners, logger, (l) => l.onRetry?.(ctx, stepInfo, retryInfo));
+        if (nextDelayMs > 0) {
+          await delay(nextDelayMs);
+        }
       }
-      // Retry only thrown errors (an explicit FAILED return is an intended
-      // outcome), within the attempt budget, and when the predicate allows.
-      const retryable =
-        threw &&
-        attempt < maxAttempts &&
-        (policy?.retryOn === undefined || policy.retryOn(caughtError));
-      if (!retryable) {
-        break;
-      }
-      const nextDelayMs = backoffDelay(policy?.backoff, attempt);
-      const retryInfo: RetryInfo = {
-        stepName: step.name,
-        attempt,
-        maxAttempts,
-        error: errorMessage ?? String(caughtError),
-        nextDelayMs,
-      };
-      await notify(listeners, logger, (l) => l.onRetry?.(ctx, stepInfo, retryInfo));
-      if (nextDelayMs > 0) {
-        await delay(nextDelayMs);
-      }
+      attempts = attempt;
     }
     if (threw) {
       logger.error(`step "${step.name}" failed`, { jobName: job.name, error: errorMessage });
@@ -194,7 +211,7 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
 
     await repository.finishStep(
       stepExecution.id,
-      finishStepInput(failed, exitStatus, durationMs, errorMessage, attempt),
+      finishStepInput(failed, exitStatus, durationMs, errorMessage, attempts, chunkCounts),
     );
 
     const outcome: StepOutcome = {
@@ -285,12 +302,14 @@ function finishStepInput(
   durationMs: number,
   errorMessage: string | undefined,
   attempts: number,
+  counts: Partial<StepCounts> | undefined,
 ): FinishStepInput {
   return {
     status: failed ? FAILED : COMPLETED,
     exitStatus,
     durationMs,
     attempts,
+    ...(counts !== undefined ? { counts } : {}),
     ...(errorMessage !== undefined ? { error: errorMessage } : {}),
   };
 }

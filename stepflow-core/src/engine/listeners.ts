@@ -1,5 +1,6 @@
 import type { RunJobResult } from './run-job';
 import type { RetryInfo } from './retry';
+import type { ChunkInfo } from './chunk';
 import type { ExitStatus, JobParameters, Logger, StepContext } from '../types';
 
 /** Job-scoped context handed to {@link JobListener.beforeJob}/{@link JobListener.afterJob}. */
@@ -46,4 +47,6 @@ export interface JobListener {
   onStepError?(ctx: StepContext, step: StepInfo, error: unknown): void | Promise<void>;
   /** Fired after a step attempt fails but will be retried (see {@link RetryInfo}). */
   onRetry?(ctx: StepContext, step: StepInfo, info: RetryInfo): void | Promise<void>;
+  /** Fired after each committed chunk of a chunk step (see {@link ChunkInfo}). */
+  onChunk?(ctx: StepContext, step: StepInfo, info: ChunkInfo): void | Promise<void>;
 }

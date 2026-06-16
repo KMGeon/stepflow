@@ -63,3 +63,42 @@ export interface Step {
   readonly name: string;
   readonly run: StepRun;
 }
+
+/**
+ * Yields the items a chunk step processes, in a **deterministic** order. The
+ * engine re-reads the full sequence on restart and skips the already-committed
+ * prefix, so the reader must reproduce the same order every run.
+ */
+export type ChunkReader<T> = (ctx: StepContext) => AsyncIterable<T> | Iterable<T>;
+
+/** Transforms a read item before it is written. Omit to write items unchanged. */
+export type ChunkProcessor<T, R> = (item: T, ctx: StepContext) => R | Promise<R>;
+
+/** Writes (commits) one chunk of processed items. Should be idempotent (at-least-once on crash). */
+export type ChunkWriter<R> = (items: readonly R[], ctx: StepContext) => void | Promise<void>;
+
+/** Configuration for {@link JobBuilder.chunkStep}. */
+export interface ChunkStepConfig<T, R> {
+  /** Items committed per chunk (must be >= 1). */
+  readonly chunkSize: number;
+  readonly reader: ChunkReader<T>;
+  readonly processor?: ChunkProcessor<T, R>;
+  readonly writer: ChunkWriter<R>;
+}
+
+/**
+ * A chunk-oriented step: read → process → write in committed chunks of
+ * `chunkSize`, checkpointing the committed offset so a restart resumes after the
+ * last committed chunk. The stored form is type-erased; {@link JobBuilder.chunkStep}
+ * preserves item/result types at the call site.
+ */
+export interface ChunkStep {
+  readonly name: string;
+  readonly chunkSize: number;
+  readonly reader: ChunkReader<unknown>;
+  readonly processor?: ChunkProcessor<unknown, unknown>;
+  readonly writer: ChunkWriter<unknown>;
+}
+
+/** Either kind of step that can appear in a job's flow. */
+export type JobStep = Step | ChunkStep;
