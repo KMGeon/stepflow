@@ -1,0 +1,46 @@
+{
+  "name": "@stepflow/integration",
+  "version": "0.1.0",
+  "description": "Scheduling and trigger adapters for stepflow jobs (cron, queue, webhook). Ships the JobTrigger seam and a manual reference trigger.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KMGeon/stepflow.git",
+    "directory": "stepflow-integration"
+  },
+  "homepage": "https://github.com/KMGeon/stepflow#readme",
+  "bugs": "https://github.com/KMGeon/stepflow/issues",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "prepack": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@stepflow/core": "^0.1.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
