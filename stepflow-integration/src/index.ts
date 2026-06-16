@@ -35,19 +35,30 @@ export interface ManualTrigger extends JobTrigger {
 /** Build a {@link ManualTrigger}. */
 export function createManualTrigger(): ManualTrigger {
   let runner: (() => Promise<RunJobResult>) | null = null;
+  let activeToken: symbol | null = null;
   return {
     start(run: () => Promise<RunJobResult>): Promise<TriggerHandle> {
+      const token = Symbol('manual-trigger');
+      activeToken = token;
       runner = run;
       return Promise.resolve({
         stop(): Promise<void> {
-          runner = null;
+          // Only clear if this handle still owns the active slot, so a stale
+          // handle from an earlier start() cannot stop a newer run.
+          if (activeToken === token) {
+            activeToken = null;
+            runner = null;
+          }
           return Promise.resolve();
         },
       });
     },
     fire(): Promise<RunJobResult> {
       if (runner === null) {
-        throw new Error('ManualTrigger.fire() called before start() (or after stop())');
+        // Reject (not throw) so the async signature holds and `.catch()` works.
+        return Promise.reject(
+          new Error('ManualTrigger.fire() called before start() (or after stop())'),
+        );
       }
       return runner();
     },
