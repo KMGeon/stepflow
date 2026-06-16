@@ -157,4 +157,73 @@ describe('runJob — listeners', () => {
       'afterJob:COMPLETED',
     ]);
   });
+
+  it('invokes multiple listeners in array order', async () => {
+    const order: string[] = [];
+    const a: JobListener = {
+      beforeStep: () => {
+        order.push('a');
+      },
+    };
+    const b: JobListener = {
+      beforeStep: () => {
+        order.push('b');
+      },
+    };
+    const job = defineJob('order')
+      .step('s', async () => undefined)
+      .build();
+
+    await runJob(job, { page, repository: repo, listeners: [a, b] });
+
+    expect(order).toEqual(['a', 'b']);
+  });
+
+  it('a throwing listener does not block later listeners for the same event', async () => {
+    const got: string[] = [];
+    const exploding: JobListener = {
+      beforeStep: () => {
+        throw new Error('boom');
+      },
+    };
+    const recording: JobListener = {
+      beforeStep: () => {
+        got.push('recorded');
+      },
+    };
+    const job = defineJob('iso2')
+      .step('s', async () => undefined)
+      .build();
+
+    const result = await runJob(job, {
+      page,
+      repository: repo,
+      listeners: [exploding, recording],
+    });
+
+    expect(result.status).toBe('COMPLETED');
+    expect(got).toEqual(['recorded']);
+  });
+
+  it('emits step events only for steps executed along a branch', async () => {
+    const events: string[] = [];
+    const job = defineJob('br')
+      .step('parse', async () => 'EMPTY')
+      .step('confirm', async () => undefined)
+      .step('cleanup', async () => undefined)
+      .branch('parse', { EMPTY: 'cleanup' })
+      .build();
+
+    const result = await runJob(job, { page, repository: repo, listeners: [recorder(events)] });
+
+    expect(result.status).toBe('COMPLETED');
+    expect(events).toEqual([
+      'beforeJob:br',
+      'beforeStep:parse',
+      'afterStep:parse:COMPLETED',
+      'beforeStep:cleanup',
+      'afterStep:cleanup:COMPLETED',
+      'afterJob:COMPLETED',
+    ]);
+  });
 });
