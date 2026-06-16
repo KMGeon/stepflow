@@ -45,11 +45,16 @@ const noopLogger: Logger = { debug: noop, info: noop, warn: noop, error: noop };
 
 async function notify(
   listeners: readonly JobListener[],
-  _logger: Logger,
+  logger: Logger,
   invoke: (listener: JobListener) => void | Promise<void>,
 ): Promise<void> {
   for (const listener of listeners) {
-    await invoke(listener);
+    try {
+      await invoke(listener);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error('listener threw', { error: message });
+    }
   }
 }
 

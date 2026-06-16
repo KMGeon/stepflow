@@ -94,4 +94,38 @@ describe('runJob — listeners', () => {
       'afterJob:FAILED',
     ]);
   });
+
+  it('isolates a throwing listener: the job still completes and the error is logged', async () => {
+    const logged: string[] = [];
+    const logger = {
+      debug: () => undefined,
+      info: () => undefined,
+      warn: () => undefined,
+      error: (message: string, _meta?: Record<string, unknown>) => {
+        logged.push(message);
+      },
+    };
+    const ran: string[] = [];
+    const exploding: JobListener = {
+      beforeStep: () => {
+        throw new Error('listener kaboom');
+      },
+    };
+    const job = defineJob('iso')
+      .step('a', async () => {
+        ran.push('a');
+      })
+      .build();
+
+    const result = await runJob(job, {
+      page,
+      repository: repo,
+      logger,
+      listeners: [exploding],
+    });
+
+    expect(result.status).toBe('COMPLETED');
+    expect(ran).toEqual(['a']);
+    expect(logged.some((m) => m.includes('listener'))).toBe(true);
+  });
 });
