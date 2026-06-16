@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS step_execution (
 );
 
 CREATE TABLE IF NOT EXISTS execution_context (
-  owner_type  VARCHAR(16) NOT NULL,             -- JOB | STEP
+  owner_type  VARCHAR(16) NOT NULL,             -- JOB | STEP | CHUNK
   owner_id    BIGINT      NOT NULL,             -- job_execution.id or step_execution.id
   ctx         JSON        NOT NULL,             -- serialized ExecutionContext (shared)
   updated_at  DATETIME(3) NOT NULL,
