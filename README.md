@@ -50,17 +50,17 @@ and run jobs:
 npm install @stepflow/core puppeteer
 ```
 
-**Common setup, one package.** `stepflow` is an umbrella that bundles and
+**Common setup, one package.** `@stepflow/all` is an umbrella that bundles and
 re-exports `@stepflow/core` + `@stepflow/puppeteer` + `@stepflow/infrastructure`,
 so the engine, the parallel runtime, and the durable repositories come from a
 single install and import:
 
 ```sh
-npm install stepflow puppeteer better-sqlite3   # add mysql2 instead of/with sqlite as needed
+npm install @stepflow/all puppeteer better-sqlite3   # add mysql2 instead of/with sqlite as needed
 ```
 
 ```ts
-import { defineJob, runJob, runJobsParallel, SqliteJobRepository } from 'stepflow';
+import { defineJob, runJob, runJobsParallel, SqliteJobRepository } from '@stepflow/all';
 ```
 
 Triggers (`@stepflow/integration`) and test utilities (`@stepflow/test`) stay
@@ -240,7 +240,7 @@ Use `createManualTrigger()` for tests, CLI commands, or hand-operated runs.
 
 | Package                    | Purpose                                                                      | Published |
 | -------------------------- | ---------------------------------------------------------------------------- | --------- |
-| `stepflow`                 | Umbrella: re-exports core + puppeteer + infrastructure for a single install. | yes       |
+| `@stepflow/all`            | Umbrella: re-exports core + puppeteer + infrastructure for a single install. | yes       |
 | `@stepflow/core`           | Job builder, execution engine, metadata model, and in-memory repository.     | yes       |
 | `@stepflow/infrastructure` | Durable `JobRepository` adapters: MySQL and SQLite, with schemas.            | yes       |
 | `@stepflow/integration`    | Trigger seam plus manual and interval trigger implementations.               | yes       |
