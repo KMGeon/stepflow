@@ -43,25 +43,27 @@ const result = await runJob(ordersSync, {
 
 ## Install
 
-```sh
-# core engine — page-injected, zero forced dependencies
-npm install @stepflow/core
-# bring your own browser
-npm install puppeteer
-```
-
-Add only the pieces you need:
+The minimum is the core engine plus a browser — this is all you need to define
+and run jobs:
 
 ```sh
-npm install @stepflow/infrastructure mysql2          # durable MySQL repository
-npm install @stepflow/infrastructure better-sqlite3  # …or SQLite
-npm install @stepflow/integration                    # manual / interval triggers
-npm install @stepflow/puppeteer puppeteer            # bounded parallel runner
+npm install @stepflow/core puppeteer
 ```
+
+**Everything else is optional.** You do _not_ install all of the below — pick
+only the rows for features you actually use (they're independent; any subset is
+fine):
+
+| You want…                                 | Install                                       |
+| ----------------------------------------- | --------------------------------------------- |
+| Durable restart across processes (MySQL)  | `@stepflow/infrastructure` + `mysql2`         |
+| …or the same with SQLite instead          | `@stepflow/infrastructure` + `better-sqlite3` |
+| Manual / interval / scheduled triggers    | `@stepflow/integration`                       |
+| Bounded parallel execution over many runs | `@stepflow/puppeteer` + `puppeteer`           |
 
 `puppeteer`, `mysql2`, and `better-sqlite3` are **optional peer dependencies** —
-your application owns the browser lifecycle and database connection. They are not
-installed automatically; add the ones your jobs actually use.
+they are never installed automatically, so a package never drags in a backend you
+don't use. (The two infrastructure rows are alternatives: choose one DB driver.)
 
 ## Quick Start
 
