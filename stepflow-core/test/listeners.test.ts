@@ -1,10 +1,10 @@
 import type { Page } from 'puppeteer';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { defineJob } from '../src/define-job';
-import { runJob } from '../src/run-job';
-import { InMemoryJobRepository } from '../src/in-memory';
-import type { JobListener } from '../src/listeners';
+import { defineJob } from '../src/builder/define-job';
+import { runJob } from '../src/engine/run-job';
+import { InMemoryJobRepository } from '../src/repository/in-memory';
+import type { JobListener } from '../src/engine/listeners';
 
 const page = {} as unknown as Page;
 

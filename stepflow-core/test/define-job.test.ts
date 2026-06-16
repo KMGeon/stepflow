@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { defineJob, JobDefinitionError } from '../src/define-job';
+import { defineJob, JobDefinitionError } from '../src/builder/define-job';
 
 const noop = (): Promise<void> => Promise.resolve();
 

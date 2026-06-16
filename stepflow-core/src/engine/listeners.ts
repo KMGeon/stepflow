@@ -1,5 +1,5 @@
 import type { RunJobResult } from './run-job';
-import type { ExitStatus, JobParameters, Logger, StepContext } from './types';
+import type { ExitStatus, JobParameters, Logger, StepContext } from '../types';
 
 /** Job-scoped context handed to {@link JobListener.beforeJob}/{@link JobListener.afterJob}. */
 export interface JobLifecycleContext {

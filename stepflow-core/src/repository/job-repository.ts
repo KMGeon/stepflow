@@ -1,4 +1,4 @@
-import type { BatchStatus, ExitStatus, JobParameters } from './types';
+import type { BatchStatus, ExitStatus, JobParameters } from '../types';
 import type {
   ContextOwnerType,
   JobExecution,
@@ -6,7 +6,7 @@ import type {
   ResultMeta,
   StepCounts,
   StepExecution,
-} from './metadata';
+} from '../metadata/metadata';
 
 /** Terminal state to record for a {@link JobExecution}. */
 export interface FinishExecutionInput {

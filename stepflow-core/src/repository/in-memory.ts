@@ -1,4 +1,4 @@
-import type { BatchStatus, ExitStatus, JobParameters } from './types';
+import type { BatchStatus, ExitStatus, JobParameters } from '../types';
 import type { FinishExecutionInput, FinishStepInput, JobRepository } from './job-repository';
 import type {
   ContextOwnerType,
@@ -6,7 +6,7 @@ import type {
   JobInstance,
   StepCounts,
   StepExecution,
-} from './metadata';
+} from '../metadata/metadata';
 
 interface ExecutionRecord {
   id: number;

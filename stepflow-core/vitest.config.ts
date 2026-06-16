@@ -8,7 +8,7 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/**/*.ts'],
       // Barrel/entry and type-only modules have no executable code.
-      exclude: ['src/index.ts', 'src/job-repository.ts', 'src/metadata.ts'],
+      exclude: ['src/index.ts', 'src/repository/job-repository.ts', 'src/metadata/metadata.ts'],
     },
   },
 });

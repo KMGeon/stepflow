@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import type { JobParameters } from './types';
+import type { JobParameters } from '../types';
 
 /**
  * Compute the stable instance key for a job run.

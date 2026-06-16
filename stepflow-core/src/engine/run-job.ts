@@ -1,11 +1,11 @@
 import type { Browser, Page } from 'puppeteer';
 
-import type { FinishStepInput, JobRepository } from './job-repository';
-import type { StepExecution } from './metadata';
-import type { Job } from './define-job';
-import { computeJobKey } from './job-key';
-import { COMPLETED, FAILED } from './types';
-import type { BatchStatus, ExitStatus, JobParameters, Logger, StepContext } from './types';
+import type { FinishStepInput, JobRepository } from '../repository/job-repository';
+import type { StepExecution } from '../metadata/metadata';
+import type { Job } from '../builder/define-job';
+import { computeJobKey } from '../metadata/job-key';
+import { COMPLETED, FAILED } from '../types';
+import type { BatchStatus, ExitStatus, JobParameters, Logger, StepContext } from '../types';
 import type { JobLifecycleContext, JobListener, StepInfo, StepOutcome } from './listeners';
 
 /** Inputs for a single {@link runJob} call. */

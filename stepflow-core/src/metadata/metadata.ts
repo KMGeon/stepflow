@@ -1,4 +1,4 @@
-import type { BatchStatus, ExitStatus } from './types';
+import type { BatchStatus, ExitStatus } from '../types';
 
 /** A logical run unit identified by `(jobName + identifying-params hash)`. */
 export interface JobInstance {

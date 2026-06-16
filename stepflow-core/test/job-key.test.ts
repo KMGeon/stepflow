@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeJobKey } from '../src/job-key';
+import { computeJobKey } from '../src/metadata/job-key';
 
 describe('computeJobKey', () => {
   it('is stable for the same jobName and params', () => {

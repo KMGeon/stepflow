@@ -1,9 +1,9 @@
 import type { Page } from 'puppeteer';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { defineJob } from '../src/define-job';
-import { runJob } from '../src/run-job';
-import { InMemoryJobRepository } from '../src/in-memory';
+import { defineJob } from '../src/builder/define-job';
+import { runJob } from '../src/engine/run-job';
+import { InMemoryJobRepository } from '../src/repository/in-memory';
 
 const page = {} as unknown as Page;
 

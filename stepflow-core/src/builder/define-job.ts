@@ -1,5 +1,5 @@
-import { JobDefinitionError } from './errors';
-import type { ExitStatus, Step, StepRun } from './types';
+import { JobDefinitionError } from '../errors';
+import type { ExitStatus, Step, StepRun } from '../types';
 
 /** A step paired with its 1-based sequence number. */
 export interface StepLocation {
