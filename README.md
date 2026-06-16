@@ -1,5 +1,9 @@
 # stepflow
 
+<p align="center">
+  <img src="assets/stepflow.png" alt="stepflow" width="760" />
+</p>
+
 [![npm](https://img.shields.io/npm/v/@stepflow/core?label=%40stepflow%2Fcore)](https://www.npmjs.com/package/@stepflow/core)
 [![license](https://img.shields.io/npm/l/@stepflow/core)](LICENSE)
 [![node](https://img.shields.io/badge/node-%3E%3D20-339933)](package.json)
