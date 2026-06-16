@@ -24,8 +24,8 @@
 
     "baseUrl": ".",
     "paths": {
-      "@stepflow/core": ["./packages/core/src/index.ts"],
-      "@stepflow/test": ["./packages/test/src/index.ts"]
+      "@stepflow/core": ["./stepflow-core/src/index.ts"],
+      "@stepflow/test": ["./stepflow-test/src/index.ts"]
     }
   }
 }

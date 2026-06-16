@@ -87,7 +87,7 @@ await runJob(job, { page, repository, params: { since: '2026-06-01' } });
 
 Re-running a job with the same identifying `params` resumes a failed run from
 the step it failed on, restoring the shared `ExecutionContext`. See
-[the design doc](packages/docs/design.md) for the full restart model and the
+[the design doc](stepflow-docs/design.md) for the full restart model and the
 schema.
 
 ## Development

@@ -9,7 +9,7 @@
     "node": ">=20"
   },
   "workspaces": [
-    "packages/*"
+    "stepflow-*"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
