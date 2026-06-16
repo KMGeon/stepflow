@@ -82,9 +82,13 @@ export function createPagePool(options: PagePoolOptions): PagePool {
     try {
       return await current.createBrowserContext();
     } catch {
-      // The browser likely died — drop it, relaunch once, and retry.
-      browser = null;
-      browserPromise = null;
+      // The browser likely died — relaunch ONCE. Only the caller still pointing at
+      // the dead browser resets the memo (compare-and-swap), so N concurrent
+      // failers share a single relaunch instead of spawning (and orphaning) N.
+      if (browser === current) {
+        browser = null;
+        browserPromise = null;
+      }
       const fresh = await ensureBrowser();
       return fresh.createBrowserContext();
     }

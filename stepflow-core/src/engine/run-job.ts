@@ -37,7 +37,12 @@ export interface RunJobOptions {
   readonly listeners?: readonly JobListener[];
   /** Override the inter-retry delay (e.g. a no-op in tests). Defaults to a real `setTimeout` wait. */
   readonly delay?: Delay;
-  /** Cooperative cancellation signal, exposed to steps via {@link StepContext.signal}. */
+  /**
+   * Cooperative cancellation signal, exposed to steps via {@link StepContext.signal}.
+   * The engine only forwards it — it does NOT itself abort between steps or interrupt
+   * a running step. Cancellation requires the step to honor the signal (forward it to
+   * Puppeteer calls) and/or the caller to force-close the page; see `@stepflow/puppeteer`.
+   */
   readonly signal?: AbortSignal;
 }
 

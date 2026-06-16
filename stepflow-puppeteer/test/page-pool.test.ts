@@ -111,4 +111,33 @@ describe('createPagePool', () => {
     await lease.close();
     await pool.drain();
   });
+
+  it('relaunches exactly once under CONCURRENT crash recovery (no orphaned browsers)', async () => {
+    let launches = 0;
+    const healthy = createFakeBrowser();
+    const dead = {
+      createBrowserContext: () => Promise.reject(new Error('browser is dead')),
+      close: () => Promise.resolve(),
+    } as unknown as Browser;
+
+    const pool = createPagePool({
+      launch: () => {
+        launches += 1;
+        return Promise.resolve(launches === 1 ? dead : healthy.browser);
+      },
+      concurrency: 3,
+    });
+
+    // Three concurrent acquires all hit the dead browser at once.
+    const leases = await Promise.all([pool.acquire(), pool.acquire(), pool.acquire()]);
+
+    expect(launches).toBe(2); // 1 dead + exactly 1 healthy relaunch — no storm
+    expect(healthy.contextsOpened()).toBe(3); // all contexts from the single relaunched browser
+
+    for (const lease of leases) {
+      await lease.close();
+    }
+    await pool.drain();
+    expect(healthy.browserClosed()).toBe(true); // the one live browser closed — nothing orphaned
+  });
 });

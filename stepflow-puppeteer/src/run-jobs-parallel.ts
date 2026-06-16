@@ -18,9 +18,12 @@ export interface RunJobsParallelOptions {
   readonly launch?: () => Promise<Browser>;
   /**
    * Per-job deadline in milliseconds. On expiry the job's {@link RunJobOptions.signal}
-   * is aborted (cooperative) and its page context is force-closed (backstop), so a
-   * hung step is unblocked and the slot reclaimed. The job is reported `FAILED` and
-   * remains restartable. Omit for no timeout.
+   * is aborted (cooperative — a step should forward it to Puppeteer) AND its page
+   * context is force-closed (unblocks page-bound waits). The job is then resolved as
+   * a synthesized `FAILED` result via a deadline race, so even a step that ignores
+   * the signal and blocks on non-page work can never hang the batch. The underlying
+   * `runJob` may keep running in the background until its page work rejects; it
+   * remains restartable. Omit for no timeout (an uncooperative step can then hang).
    */
   readonly jobTimeoutMs?: number;
   /** Logger passed to each run. Defaults to the engine's no-op. */
@@ -34,6 +37,18 @@ async function defaultLaunch(): Promise<Browser> {
   return mod.default.launch();
 }
 
+/** A synthesized `FAILED` result for failures with no (or an abandoned) execution. */
+function failedResult(error: unknown): RunJobResult {
+  return {
+    instanceId: -1,
+    executionId: -1,
+    status: 'FAILED',
+    exitStatus: 'FAILED',
+    restarted: false,
+    error: error instanceof Error ? error.message : String(error),
+  };
+}
+
 async function runOne(
   job: Job,
   params: JobParameters,
@@ -42,22 +57,36 @@ async function runOne(
 ): Promise<RunJobResult> {
   const lease = await pool.acquire();
   const controller = new AbortController();
-  const timer =
-    options.jobTimeoutMs !== undefined
-      ? setTimeout(() => {
-          controller.abort();
-          void lease.close(); // backstop: force-close unblocks a step that ignores the signal
-        }, options.jobTimeoutMs)
-      : undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  // Isolate infra/repository rejections (runJob throws OUTSIDE the step try/catch,
+  // e.g. createExecution fails) into a FAILED result, so one job's failure never
+  // aborts the batch. The .catch also keeps this promise from rejecting unhandled
+  // if the deadline race resolves first and this settles later.
+  const run = runJob(job, {
+    page: lease.page,
+    browser: lease.browser,
+    repository: options.repository,
+    params,
+    signal: controller.signal,
+    ...(options.logger !== undefined ? { logger: options.logger } : {}),
+  }).catch((error: unknown): RunJobResult => failedResult(error));
+
   try {
-    return await runJob(job, {
-      page: lease.page,
-      browser: lease.browser,
-      repository: options.repository,
-      params,
-      signal: controller.signal,
-      ...(options.logger !== undefined ? { logger: options.logger } : {}),
+    const timeoutMs = options.jobTimeoutMs;
+    if (timeoutMs === undefined) {
+      return await run;
+    }
+    // Hard backstop: abort the signal + force-close the context, but also resolve
+    // the race ourselves so a step that ignores both never hangs the batch.
+    const deadline = new Promise<RunJobResult>((resolve) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        void lease.close();
+        resolve(failedResult(new Error(`job timed out after ${String(timeoutMs)}ms`)));
+      }, timeoutMs);
     });
+    return await Promise.race([run, deadline]);
   } finally {
     if (timer !== undefined) {
       clearTimeout(timer);
@@ -70,9 +99,9 @@ async function runOne(
  * Run one job across many parameter sets concurrently, bounded by `concurrency`.
  *
  * Each run gets an isolated {@link PageLease} (a fresh BrowserContext+Page). Runs
- * are independent: one failing does not abort the others (the engine reports
- * failures via {@link RunJobResult.status} rather than throwing). The browser pool
- * is created here and drained on completion.
+ * are fully independent: a step failure OR an infra/repository rejection yields a
+ * `FAILED` result for that job only and never aborts the others. The browser pool
+ * is created here and always drained on completion.
  *
  * Results are returned in the same order as `paramsList`.
  */

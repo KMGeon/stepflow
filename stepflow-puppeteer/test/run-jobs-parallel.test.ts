@@ -1,10 +1,21 @@
 import { defineJob, InMemoryJobRepository } from '@stepflow/core';
+import type { JobExecution, JobParameters } from '@stepflow/core';
 import { describe, expect, it } from 'vitest';
 
 import { runJobsParallel } from '../src/run-jobs-parallel';
 import { createFakeBrowser } from './fake-browser';
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+/** A repository whose createExecution rejects for one params set (simulated infra error). */
+class FlakyRepo extends InMemoryJobRepository {
+  override createExecution(instanceId: number, params: JobParameters): Promise<JobExecution> {
+    if (params.id === '1') {
+      return Promise.reject(new Error('DB down'));
+    }
+    return super.createExecution(instanceId, params);
+  }
+}
 
 describe('runJobsParallel', () => {
   it('runs every param set, one context per job, drains at the end', async () => {
@@ -97,5 +108,41 @@ describe('runJobsParallel', () => {
 
     expect(results[0]?.status).toBe('FAILED');
     expect(fb.contextsClosed()).toBe(1); // force-close + finally close == one (idempotent)
+  });
+
+  it('isolates an infra/repository rejection: the batch resolves with siblings intact', async () => {
+    const fb = createFakeBrowser();
+    const job = defineJob('p')
+      .step('a', async () => undefined)
+      .build();
+
+    const results = await runJobsParallel(job, [{ id: '0' }, { id: '1' }, { id: '2' }], {
+      repository: new FlakyRepo(),
+      concurrency: 3,
+      launch: () => Promise.resolve(fb.browser),
+    });
+
+    expect(results.map((r) => r.status)).toEqual(['COMPLETED', 'FAILED', 'COMPLETED']);
+    expect(results[1]?.error).toMatch(/DB down/);
+    expect(fb.browserClosed()).toBe(true); // still drained
+  });
+
+  it('does not hang when a step ignores the signal: the deadline still resolves FAILED', async () => {
+    const fb = createFakeBrowser();
+    const job = defineJob('p')
+      // A step that never settles and ignores ctx.signal — only the deadline race saves us.
+      .step('a', () => new Promise<void>(() => undefined))
+      .build();
+
+    const results = await runJobsParallel(job, [{ id: '0' }], {
+      repository: new InMemoryJobRepository(),
+      concurrency: 1,
+      jobTimeoutMs: 20,
+      launch: () => Promise.resolve(fb.browser),
+    });
+
+    expect(results[0]?.status).toBe('FAILED');
+    expect(results[0]?.error).toMatch(/timed out/);
+    expect(fb.browserClosed()).toBe(true); // drained — proves the batch did not hang
   });
 });
