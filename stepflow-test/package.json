@@ -45,6 +45,14 @@
     "puppeteer": ">=22",
     "vitest": ">=2"
   },
+  "peerDependenciesMeta": {
+    "puppeteer": {
+      "optional": true
+    },
+    "vitest": {
+      "optional": true
+    }
+  },
   "publishConfig": {
     "access": "public"
   }
