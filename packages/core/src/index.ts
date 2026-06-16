@@ -26,6 +26,8 @@ export type { Job, JobBuilder, StepLocation } from './define-job';
 export { runJob } from './run-job';
 export type { RunJobOptions, RunJobResult } from './run-job';
 
+export type { JobListener, JobLifecycleContext, StepInfo, StepOutcome } from './listeners';
+
 export { InMemoryJobRepository } from './in-memory';
 // MySqlJobRepository is exported from the @stepflow/infrastructure package so @stepflow/core
 // entry never imports mysql2 types (mysql2 is an optional peer dependency).
