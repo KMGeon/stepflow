@@ -1,6 +1,6 @@
 {
   "name": "@stepflow/integration",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Scheduling and trigger adapters for stepflow jobs (cron, queue, webhook). Ships the JobTrigger seam and a manual reference trigger.",
   "type": "module",
   "license": "MIT",
@@ -38,7 +38,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@stepflow/core": "^0.1.0"
+    "@stepflow/core": "^0.2.0"
   },
   "publishConfig": {
     "access": "public"

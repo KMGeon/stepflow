@@ -101,6 +101,16 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
       ? ((await repository.loadContext('JOB', previous.id)) ?? {})
       : {};
 
+  // Engine-private chunk checkpoints (committed item offset per chunk step),
+  // persisted under their own 'CHUNK' context owner — kept OUT of the user
+  // `shared` bag so they neither leak to steps nor collide with user keys.
+  // Loaded only on restart; a fresh run always starts from an empty map.
+  const chunkCheckpoints: Record<string, number> =
+    restarting && previous !== null
+      ? (((await repository.loadContext('CHUNK', previous.id)) as Record<string, number> | null) ??
+        {})
+      : {};
+
   let current: string | null = job.entry;
   if (restarting && previous !== null) {
     const priorSteps = await repository.findStepExecutions(previous.id);
@@ -110,6 +120,7 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
     // checkpoint — otherwise a second consecutive restart would load an empty
     // context and lose data produced by the skipped steps.
     await repository.saveContext('JOB', execution.id, shared);
+    await repository.saveContext('CHUNK', execution.id, chunkCheckpoints);
   }
 
   const ctx = buildContext({
@@ -150,8 +161,8 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
     let chunkCounts: Partial<StepCounts> | undefined;
 
     if (isChunkStep(step)) {
-      const chunkResult = await runChunkStep(step, ctx, {
-        persistCheckpoint: () => repository.saveContext('JOB', execution.id, shared),
+      const chunkResult = await runChunkStep(step, ctx, chunkCheckpoints, {
+        persistCheckpoint: () => repository.saveContext('CHUNK', execution.id, chunkCheckpoints),
         emitChunk: (info) => notify(listeners, logger, (l) => l.onChunk?.(ctx, stepInfo, info)),
       });
       exitStatus = chunkResult.exitStatus;

@@ -1,6 +1,6 @@
 {
   "name": "@stepflow/test",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Test utilities for stepflow: the JobRepository contract suite and a Puppeteer Page test double.",
   "type": "module",
   "license": "MIT",
@@ -38,7 +38,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@stepflow/core": "^0.1.0"
+    "@stepflow/core": "^0.2.0"
   },
   "peerDependencies": {
     "puppeteer": ">=22",

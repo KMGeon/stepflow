@@ -48,5 +48,9 @@ export interface StepExecution {
   readonly error: string | null;
 }
 
-/** Owner kind for an execution-context row. */
-export type ContextOwnerType = 'JOB' | 'STEP';
+/**
+ * Owner kind for an execution-context row. `'JOB'` carries the user `shared`
+ * bag; `'CHUNK'` carries engine-private chunk checkpoints (kept out of `shared`);
+ * `'STEP'` is reserved for per-step context.
+ */
+export type ContextOwnerType = 'JOB' | 'STEP' | 'CHUNK';

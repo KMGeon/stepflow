@@ -1,6 +1,6 @@
 {
   "name": "@stepflow/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Declarative Puppeteer RPA batch runtime — Job/Step/Flow builder, execution engine, metadata model, and the in-memory JobRepository.",
   "type": "module",
   "license": "MIT",

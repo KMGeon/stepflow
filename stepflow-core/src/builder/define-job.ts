@@ -52,6 +52,11 @@ class JobBuilderImpl implements JobBuilder {
   }
 
   chunkStep<T, R>(name: string, config: ChunkStepConfig<T, R>): this {
+    if (!Number.isInteger(config.chunkSize) || config.chunkSize < 1) {
+      throw new JobDefinitionError(
+        `Job "${this.#name}" chunk step "${name}" has invalid chunkSize ${String(config.chunkSize)} (must be an integer >= 1)`,
+      );
+    }
     // The stored form is type-erased; item/result types are preserved only at the
     // call site. Item-type variance prevents a direct cast, so erase via unknown.
     const chunk = {
@@ -87,9 +92,15 @@ class JobBuilderImpl implements JobBuilder {
     this.#assertAllReachable(first.name, transitions, locations);
 
     for (const stepName of this.#retries.keys()) {
-      if (!locations.has(stepName)) {
+      const location = locations.get(stepName);
+      if (location === undefined) {
         throw new JobDefinitionError(
           `Job "${this.#name}" sets retry on unknown step "${stepName}"`,
+        );
+      }
+      if ('reader' in location.step) {
+        throw new JobDefinitionError(
+          `Job "${this.#name}" cannot set retry on chunk step "${stepName}" (chunk steps recover via checkpoint restart)`,
         );
       }
     }

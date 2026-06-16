@@ -199,4 +199,93 @@ describe('runJob — chunk', () => {
     expect(result.status).toBe('COMPLETED');
     expect(order).toEqual(['before', 'chunk:1,2', 'chunk:3', 'after']);
   });
+
+  it('keeps chunk checkpoints out of the user shared bag', async () => {
+    let seenSharedKeys: string[] = [];
+    const job = defineJob('c')
+      .chunkStep<number, number>('process', {
+        chunkSize: 2,
+        reader: () => [1, 2, 3],
+        writer: () => undefined,
+      })
+      .step('after', async (ctx) => {
+        seenSharedKeys = Object.keys(ctx.shared);
+      })
+      .build();
+
+    const result = await runJob(job, { page, repository: repo });
+
+    expect(result.status).toBe('COMPLETED');
+    expect(seenSharedKeys).toEqual([]); // no internal checkpoint key leaks into shared
+    expect((await repo.loadContext('JOB', result.executionId)) ?? {}).toEqual({});
+    // The checkpoint lives in its own engine-private 'CHUNK' channel.
+    expect(await repo.loadContext('CHUNK', result.executionId)).toEqual({ process: 3 });
+  });
+
+  it('ignores a user shared key on a fresh run (no spoofed checkpoint)', async () => {
+    const written: number[][] = [];
+    const job = defineJob('c')
+      .step('seed', async (ctx) => {
+        // A user key that looks like internal state must NOT affect chunk processing.
+        ctx.shared.__stepflow_chunk_checkpoints__ = { process: 2 };
+      })
+      .chunkStep<number, number>('process', {
+        chunkSize: 2,
+        reader: () => [1, 2, 3, 4],
+        writer: (items) => {
+          written.push([...items]);
+        },
+      })
+      .build();
+
+    const result = await runJob(job, { page, repository: repo });
+
+    expect(result.status).toBe('COMPLETED');
+    expect(written).toEqual([
+      [1, 2],
+      [3, 4],
+    ]); // all items processed; no items skipped
+  });
+
+  it('rejects a chunkSize below 1', () => {
+    expect(() =>
+      defineJob('c').chunkStep('p', {
+        chunkSize: 0,
+        reader: () => [],
+        writer: () => undefined,
+      }),
+    ).toThrow(/chunkSize/);
+  });
+
+  it('rejects a retry policy on a chunk step at build()', () => {
+    expect(() =>
+      defineJob('c')
+        .chunkStep('p', { chunkSize: 2, reader: () => [1], writer: () => undefined })
+        .retry('p', { maxAttempts: 3 })
+        .build(),
+    ).toThrow(/chunk step/);
+  });
+
+  it('isolates a throwing onChunk listener (chunks still commit, job completes)', async () => {
+    const written: number[][] = [];
+    const listener: JobListener = {
+      onChunk: () => {
+        throw new Error('listener boom');
+      },
+    };
+    const job = defineJob('c')
+      .chunkStep<number, number>('process', {
+        chunkSize: 2,
+        reader: () => [1, 2, 3],
+        writer: (items) => {
+          written.push([...items]);
+        },
+      })
+      .build();
+
+    const result = await runJob(job, { page, repository: repo, listeners: [listener] });
+
+    expect(result.status).toBe('COMPLETED');
+    expect(written).toEqual([[1, 2], [3]]);
+  });
 });

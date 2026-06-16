@@ -1,9 +1,6 @@
 import { COMPLETED, FAILED } from '../types';
 import type { ChunkStep, ExitStatus, JobStep, StepContext } from '../types';
 
-/** Reserved `shared` key holding per-chunk-step committed offsets (survives restart). */
-const CHECKPOINT_KEY = '__stepflow_chunk_checkpoints__';
-
 /** Payload for {@link JobListener.onChunk}, emitted after each committed chunk. */
 export interface ChunkInfo {
   readonly stepName: string;
@@ -32,16 +29,16 @@ export function isChunkStep(step: JobStep): step is ChunkStep {
   return 'reader' in step;
 }
 
-function readCheckpoints(shared: Record<string, unknown>): Record<string, number> {
-  const raw = shared[CHECKPOINT_KEY];
-  return typeof raw === 'object' && raw !== null ? (raw as Record<string, number>) : {};
-}
-
 /**
  * Run a chunk step: read the deterministic item sequence, skip the prefix already
- * committed in a prior run, then process/write/commit in chunks of `chunkSize`.
- * Each commit advances the checkpoint (in `ctx.shared`) and persists it via
- * `persistCheckpoint`, so a later failure still resumes after the last commit.
+ * committed in a prior run (from `checkpoints`, keyed by step name), then
+ * process/write/commit in chunks of `chunkSize`. Each commit advances
+ * `checkpoints[step.name]` and persists it via `persistCheckpoint`, so a later
+ * failure still resumes after the last commit.
+ *
+ * `checkpoints` is an engine-private store (persisted under its own context owner),
+ * NOT the user `ctx.shared` bag — so it neither leaks to user steps nor can be
+ * spoofed by a user key.
  *
  * `at-least-once`: a crash between a writer commit and the checkpoint persist may
  * re-process the last chunk on restart, so writers should be idempotent.
@@ -49,12 +46,12 @@ function readCheckpoints(shared: Record<string, unknown>): Record<string, number
 export async function runChunkStep(
   step: ChunkStep,
   ctx: StepContext,
+  checkpoints: Record<string, number>,
   deps: {
     persistCheckpoint: () => Promise<void>;
     emitChunk: (info: ChunkInfo) => Promise<void>;
   },
 ): Promise<ChunkRunResult> {
-  const checkpoints = readCheckpoints(ctx.shared);
   const startCommitted = checkpoints[step.name] ?? 0;
   let committed = startCommitted;
   let readCount = 0;
@@ -69,7 +66,6 @@ export async function runChunkStep(
     writeCount += buffer.length;
     chunkIndex += 1;
     checkpoints[step.name] = committed;
-    ctx.shared[CHECKPOINT_KEY] = checkpoints;
     await deps.persistCheckpoint();
     await deps.emitChunk({
       stepName: step.name,

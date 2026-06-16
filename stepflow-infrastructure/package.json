@@ -1,6 +1,6 @@
 {
   "name": "@stepflow/infrastructure",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MySQL JobRepository adapter for stepflow.",
   "type": "module",
   "license": "MIT",
@@ -40,13 +40,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@stepflow/core": "^0.1.0"
+    "@stepflow/core": "^0.2.0"
   },
   "peerDependencies": {
     "mysql2": ">=3"
   },
   "devDependencies": {
-    "@stepflow/test": "^0.1.0"
+    "@stepflow/test": "^0.2.0"
   },
   "publishConfig": {
     "access": "public"

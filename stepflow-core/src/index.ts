@@ -41,6 +41,7 @@ export type { JobListener, JobLifecycleContext, StepInfo, StepOutcome } from './
 export type { RetryPolicy, BackoffPolicy, RetryInfo } from './engine/retry';
 
 export type { ChunkInfo } from './engine/chunk';
+export { isChunkStep } from './engine/chunk';
 
 export { InMemoryJobRepository } from './repository/in-memory';
 // MySqlJobRepository is exported from the @stepflow/infrastructure package so @stepflow/core

@@ -1,6 +1,6 @@
 {
   "name": "@stepflow/samples",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Generic reference jobs demonstrating stepflow.",
   "private": true,
   "type": "module",
@@ -10,10 +10,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@stepflow/core": "^0.1.0"
+    "@stepflow/core": "^0.2.0"
   },
   "devDependencies": {
-    "@stepflow/test": "^0.1.0",
+    "@stepflow/test": "^0.2.0",
     "puppeteer": "^24.0.0"
   }
 }

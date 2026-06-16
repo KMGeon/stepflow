@@ -164,6 +164,26 @@ describe('runJob — retry', () => {
     expect(delays).toEqual([10, 20]);
   });
 
+  it('isolates a throwing onRetry listener (job still completes)', async () => {
+    const flaky = flakyStep(1);
+    const listener: JobListener = {
+      onRetry: () => {
+        throw new Error('listener boom');
+      },
+    };
+    const job = defineJob('r').step('a', flaky.run).retry('a', { maxAttempts: 3 }).build();
+
+    const result = await runJob(job, {
+      page,
+      repository: repo,
+      listeners: [listener],
+      delay: noDelay,
+    });
+
+    expect(result.status).toBe('COMPLETED');
+    expect(flaky.calls()).toBe(2);
+  });
+
   it('gives a fresh retry budget on restart after exhausting retries', async () => {
     let calls = 0;
     const job = defineJob('r')
