@@ -128,4 +128,33 @@ describe('runJob — listeners', () => {
     expect(ran).toEqual(['a']);
     expect(logged.some((m) => m.includes('listener'))).toBe(true);
   });
+
+  it('does not emit step events for carry-forward steps on restart', async () => {
+    const attempts = { process: 0 };
+    const job = defineJob('restartable')
+      .step('login', async () => undefined)
+      .step('search', async () => undefined)
+      .step('process', async () => {
+        attempts.process += 1;
+        if (attempts.process === 1) throw new Error('flaky');
+      })
+      .build();
+
+    // First run fails at 'process'.
+    const first = await runJob(job, { page, repository: repo });
+    expect(first.status).toBe('FAILED');
+
+    // Second run restarts; only the resumed 'process' step should emit.
+    const events: string[] = [];
+    const second = await runJob(job, { page, repository: repo, listeners: [recorder(events)] });
+
+    expect(second.restarted).toBe(true);
+    expect(second.status).toBe('COMPLETED');
+    expect(events).toEqual([
+      'beforeJob:restartable',
+      'beforeStep:process',
+      'afterStep:process:COMPLETED',
+      'afterJob:COMPLETED',
+    ]);
+  });
 });
