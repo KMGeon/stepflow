@@ -1,7 +1,7 @@
 {
   "name": "@stepflow/infrastructure",
   "version": "0.2.0",
-  "description": "MySQL JobRepository adapter for stepflow.",
+  "description": "MySQL and SQLite JobRepository adapters for stepflow.",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -25,11 +25,13 @@
         "default": "./dist/index.cjs"
       }
     },
-    "./schema.sql": "./src/schema.sql"
+    "./schema.sql": "./src/schema.sql",
+    "./schema.sqlite.sql": "./src/schema.sqlite.sql"
   },
   "files": [
     "dist",
     "src/schema.sql",
+    "src/schema.sqlite.sql",
     "LICENSE"
   ],
   "sideEffects": false,
@@ -44,10 +46,21 @@
     "@stepflow/core": "^0.2.0"
   },
   "peerDependencies": {
+    "better-sqlite3": ">=11",
     "mysql2": ">=3"
   },
+  "peerDependenciesMeta": {
+    "mysql2": {
+      "optional": true
+    },
+    "better-sqlite3": {
+      "optional": true
+    }
+  },
   "devDependencies": {
-    "@stepflow/test": "^0.2.0"
+    "@stepflow/test": "^0.2.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^12.11.1"
   },
   "publishConfig": {
     "access": "public"

@@ -41,6 +41,11 @@
   "peerDependencies": {
     "puppeteer": ">=22"
   },
+  "peerDependenciesMeta": {
+    "puppeteer": {
+      "optional": true
+    }
+  },
   "publishConfig": {
     "access": "public"
   }

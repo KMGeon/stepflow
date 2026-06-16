@@ -43,6 +43,11 @@
   "peerDependencies": {
     "puppeteer": ">=22"
   },
+  "peerDependenciesMeta": {
+    "puppeteer": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@stepflow/test": "^0.2.0"
   },

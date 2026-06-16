@@ -1,13 +1,13 @@
 {
-  "name": "@stepflow/test",
+  "name": "stepflow",
   "version": "0.2.0",
-  "description": "Test utilities for stepflow: the JobRepository contract suite and a Puppeteer Page test double.",
+  "description": "Umbrella package for stepflow: installs and re-exports @stepflow/core, @stepflow/puppeteer, and @stepflow/infrastructure in one dependency.",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/KMGeon/stepflow.git",
-    "directory": "stepflow-test"
+    "directory": "stepflow-bundle"
   },
   "homepage": "https://github.com/KMGeon/stepflow#readme",
   "bugs": "https://github.com/KMGeon/stepflow/issues",
@@ -35,25 +35,27 @@
     "build": "tsup",
     "prepack": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test": "vitest run"
   },
   "dependencies": {
-    "@stepflow/core": "^0.2.0"
+    "@stepflow/core": "^0.2.0",
+    "@stepflow/infrastructure": "^0.2.0",
+    "@stepflow/puppeteer": "^0.2.0"
   },
   "peerDependencies": {
-    "puppeteer": ">=22",
-    "vitest": ">=2"
+    "better-sqlite3": ">=11",
+    "mysql2": ">=3",
+    "puppeteer": ">=22"
   },
   "peerDependenciesMeta": {
-    "puppeteer": {
+    "better-sqlite3": {
       "optional": true
     },
-    "vitest": {
+    "mysql2": {
+      "optional": true
+    },
+    "puppeteer": {
       "optional": true
     }
-  },
-  "publishConfig": {
-    "access": "public"
   }
 }

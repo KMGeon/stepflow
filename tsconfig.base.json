@@ -25,7 +25,10 @@
     "baseUrl": ".",
     "paths": {
       "@stepflow/core": ["./stepflow-core/src/index.ts"],
-      "@stepflow/test": ["./stepflow-test/src/index.ts"]
+      "@stepflow/test": ["./stepflow-test/src/index.ts"],
+      "@stepflow/infrastructure": ["./stepflow-infrastructure/src/index.ts"],
+      "@stepflow/integration": ["./stepflow-integration/src/index.ts"],
+      "@stepflow/puppeteer": ["./stepflow-puppeteer/src/index.ts"]
     }
   }
 }
