@@ -1,6 +1,6 @@
-// stepflow — umbrella package. Re-exports the common trio so a single
-// `npm install stepflow` (and one import surface) covers the engine, the durable
-// repositories, and the parallel Puppeteer runtime.
+// @stepflow/all — umbrella package. Re-exports the common trio so a single
+// `npm install @stepflow/all` (and one import surface) covers the engine, the
+// durable repositories, and the parallel Puppeteer runtime.
 //
 // The browser (`puppeteer`) and a DB driver (`mysql2` or `better-sqlite3`) remain
 // OPTIONAL peers — install only the ones your jobs use. Other packages
