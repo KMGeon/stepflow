@@ -6,6 +6,7 @@ import type { Job } from './define-job';
 import { computeJobKey } from './job-key';
 import { COMPLETED, FAILED } from './types';
 import type { BatchStatus, ExitStatus, JobParameters, Logger, StepContext } from './types';
+import type { JobLifecycleContext, JobListener, StepInfo, StepOutcome } from './listeners';
 
 /** Inputs for a single {@link runJob} call. */
 export interface RunJobOptions {
@@ -21,6 +22,8 @@ export interface RunJobOptions {
   readonly logger?: Logger;
   /** When the last execution failed, resume from it. Defaults to `true`. */
   readonly restart?: boolean;
+  /** Lifecycle observers. Fired in array order; a throwing listener is isolated. Defaults to none. */
+  readonly listeners?: readonly JobListener[];
 }
 
 /** Outcome of a {@link runJob} call. */
@@ -40,6 +43,16 @@ type TerminalStatus = Extract<BatchStatus, 'COMPLETED' | 'FAILED'>;
 const noop = (): void => undefined;
 const noopLogger: Logger = { debug: noop, info: noop, warn: noop, error: noop };
 
+async function notify(
+  listeners: readonly JobListener[],
+  _logger: Logger,
+  invoke: (listener: JobListener) => void | Promise<void>,
+): Promise<void> {
+  for (const listener of listeners) {
+    await invoke(listener);
+  }
+}
+
 /**
  * Execute a job on an injected page, persisting all metadata and resuming a
  * previously failed run of the same instance when appropriate.
@@ -55,6 +68,7 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
   const logger = options.logger ?? noopLogger;
   const params: JobParameters = options.params ?? {};
   const allowRestart = options.restart !== false;
+  const listeners = options.listeners ?? [];
 
   const jobKey = computeJobKey(job.name, params);
   const instance = await repository.resolveInstance(job.name, jobKey);
@@ -90,22 +104,35 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
     browser,
   });
 
+  const jobCtx: JobLifecycleContext = {
+    jobName: job.name,
+    instanceId: instance.id,
+    executionId: execution.id,
+    params,
+    logger,
+  };
+  await notify(listeners, logger, (l) => l.beforeJob?.(jobCtx));
+
   let lastExitStatus: ExitStatus = COMPLETED;
   let failure: string | null = null;
 
   while (current !== null) {
     const { step, seqNo } = job.stepAt(current);
+    const stepInfo: StepInfo = { stepName: step.name, seqNo };
     const stepExecution = await repository.startStep(execution.id, step.name, seqNo);
+    await notify(listeners, logger, (l) => l.beforeStep?.(ctx, stepInfo));
 
     const startedAt = Date.now();
     let exitStatus: ExitStatus;
     let threw = false;
+    let caughtError: unknown;
     let errorMessage: string | undefined;
     try {
       const returned = await step.run(ctx);
       exitStatus = typeof returned === 'string' ? returned : COMPLETED;
     } catch (error) {
       threw = true;
+      caughtError = error;
       exitStatus = FAILED;
       errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(`step "${step.name}" failed`, { jobName: job.name, error: errorMessage });
@@ -119,6 +146,20 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
       stepExecution.id,
       finishStepInput(failed, exitStatus, durationMs, errorMessage),
     );
+
+    const outcome: StepOutcome = {
+      status: failed ? FAILED : COMPLETED,
+      exitStatus,
+      durationMs,
+      ...(errorMessage !== undefined ? { error: errorMessage } : {}),
+    };
+    if (failed) {
+      const stepError = threw
+        ? caughtError
+        : new Error(`step "${step.name}" returned exit status "${exitStatus}"`);
+      await notify(listeners, logger, (l) => l.onStepError?.(ctx, stepInfo, stepError));
+    }
+    await notify(listeners, logger, (l) => l.afterStep?.(ctx, stepInfo, outcome));
 
     lastExitStatus = exitStatus;
     const next = job.next(step.name, exitStatus);
@@ -147,7 +188,7 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
     ...(failure !== null ? { error: failure } : {}),
   });
 
-  return {
+  const result: RunJobResult = {
     instanceId: instance.id,
     executionId: execution.id,
     status,
@@ -155,6 +196,8 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
     restarted: restarting,
     ...(failure !== null ? { error: failure } : {}),
   };
+  await notify(listeners, logger, (l) => l.afterJob?.(jobCtx, result));
+  return result;
 }
 
 /**
