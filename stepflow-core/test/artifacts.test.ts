@@ -39,13 +39,14 @@ describe('failure artifacts', () => {
     expect(result.status).toBe('FAILED');
     expect(captured).toHaveLength(1);
     const a = captured[0];
-    expect(a?.stepName).toBe('boom');
-    expect(a?.executionId).toBe(result.executionId);
-    expect(a?.error).toContain('kaboom');
-    expect(a?.url).toBe('https://example.com/fail');
-    expect(Array.from(a?.screenshot ?? [])).toEqual([1, 2, 3]);
-    expect(a?.html).toBe('<html>boom</html>');
-    expect(a?.capturedAt).toBe(1234);
+    if (a === undefined) throw new Error('expected one captured artifact');
+    expect(a.stepName).toBe('boom');
+    expect(a.executionId).toBe(result.executionId);
+    expect(a.error).toContain('kaboom');
+    expect(a.url).toBe('https://example.com/fail');
+    expect(Array.from(a.screenshot)).toEqual([1, 2, 3]);
+    expect(a.html).toBe('<html>boom</html>');
+    expect(a.capturedAt).toBe(1234);
   });
 
   it('TC-8: a step that fails after retries captures exactly once', async () => {
