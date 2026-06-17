@@ -24,11 +24,11 @@
 
     "baseUrl": ".",
     "paths": {
-      "@stepflow/core": ["./stepflow-core/src/index.ts"],
-      "@stepflow/test": ["./stepflow-test/src/index.ts"],
-      "@stepflow/infrastructure": ["./stepflow-infrastructure/src/index.ts"],
-      "@stepflow/integration": ["./stepflow-integration/src/index.ts"],
-      "@stepflow/puppeteer": ["./stepflow-puppeteer/src/index.ts"]
+      "@kmgeon/stepflow": ["./src/index.ts"],
+      "@kmgeon/stepflow/puppeteer": ["./src/puppeteer/index.ts"],
+      "@kmgeon/stepflow/infrastructure": ["./src/infrastructure/index.ts"],
+      "@kmgeon/stepflow/integration": ["./src/integration/index.ts"],
+      "@kmgeon/stepflow/test": ["./src/test/index.ts"]
     }
   }
 }

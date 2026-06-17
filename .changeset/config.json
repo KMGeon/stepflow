@@ -7,5 +7,5 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@stepflow/docs", "@stepflow/samples"]
+  "ignore": []
 }
