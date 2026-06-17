@@ -5,13 +5,14 @@ body:
   - type: dropdown
     id: package
     attributes:
-      label: Entry point
+      label: Package
       options:
-        - '@kmgeon/stepflow (core)'
-        - '@kmgeon/stepflow/infrastructure'
-        - '@kmgeon/stepflow/integration'
-        - '@kmgeon/stepflow/puppeteer'
-        - '@kmgeon/stepflow/test'
+        - '@kmgeon/stepflow-core'
+        - '@kmgeon/stepflow-infrastructure'
+        - '@kmgeon/stepflow-integration'
+        - '@kmgeon/stepflow-puppeteer'
+        - '@kmgeon/stepflow-test'
+        - 'stepflow (umbrella)'
         - 'unsure'
     validations:
       required: true

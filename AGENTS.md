@@ -5,15 +5,11 @@
 
 - **어떻게 일하나** → 이 문서 (§2–11)
 - **무엇을·왜 만드나** (목표, restart 모델, 메타데이터 스키마, 설계 결정) →
-  [`docs/design.md`](./docs/design.md). 엔진 동작, repository 계약, 메타데이터
-  모델을 바꾸기 전에 반드시 먼저 읽는다.
-- **테스트 전략** (레이어, 실행 방법, 위치 규약) →
-  [`docs/testing.md`](./docs/testing.md)
-- **패키징 전략** (단일 패키지, subpath exports, 빌드·배포) →
-  [`docs/packaging.md`](./docs/packaging.md)
+  [`stepflow-docs/design.md`](./stepflow-docs/design.md). 엔진 동작, repository 계약,
+  메타데이터 모델을 바꾸기 전에 반드시 먼저 읽는다.
 
-이 문서와 `docs/design.md`가 _시스템이 무엇을 해야 하는가_ 에서 충돌하면
-`docs/design.md`가 우선한다 — 설계 의도를 정의하는 문서다. 이 문서는 _어떻게
+이 문서와 `stepflow-docs/design.md`가 _시스템이 무엇을 해야 하는가_ 에서 충돌하면
+`stepflow-docs/design.md`가 우선한다 — 설계 의도를 정의하는 문서다. 이 문서는 _어떻게
 일하는가_ 를 규정한다.
 
 ## 1. 이 프로젝트는 무엇인가
@@ -21,8 +17,9 @@
 **stepflow**는 선언적 Puppeteer RPA 배치 런타임이다. Job을 명명된 Step/Flow로
 정의하고, 주입된 Puppeteer `page` 위에서 실행하며, 실행 이력(Spring Batch 스타일의
 JobInstance / JobExecution / ExecutionContext)을 영속화해서 실패한 실행이 실패한
-step부터 재시작된다. TypeScript 라이브러리이며 npm에 단일 패키지
-`@kmgeon/stepflow`로 배포된다.
+step부터 재시작된다. TypeScript로 작성하며 **npm workspaces 모노레포**로 관리하고
+모듈별 패키지로 npm에 배포한다 — 코어는 `@kmgeon/stepflow-core`, 합본 엄브렐러는
+`@kmgeon/stepflow`(§8).
 
 엔진은 브라우저를 직접 띄우거나 DB 커넥션을 소유하지 않는다 — 호출자가 `page`와
 repository를 주입한다. 이 의존성 역전을 깨지 말 것.
@@ -93,28 +90,31 @@ repository를 주입한다. 이 의존성 역전을 깨지 말 것.
 
 ## 8. 저장소 구조
 
-npm 패키지 하나, subpath exports로 노출. 소스 구조가 exports를 그대로 반영한다.
+npm workspaces 모노레포. 모듈마다 패키지 하나이며, 각 패키지는 자체 `src/`·`test/`·
+`package.json`·`tsconfig.json`·`tsup.config.ts`·`vitest.config.ts`를 가진다.
 
-```
-src/                     # "."                  — 엔진, builder, metadata, in-memory repo
-  builder/ engine/ metadata/ repository/
-  puppeteer/             # "./puppeteer"        — 페이지 풀, 병렬 러너
-  infrastructure/        # "./infrastructure"   — MySQL / SQLite repository (+ schema*.sql)
-  integration/           # "./integration"      — 트리거 seam, manual/interval 트리거
-  test/                  # "./test"             — repository 계약 스위트, Page 테스트 더블
-test/<module>/           # 테스트, src 구조를 따라 그룹화
-examples/                # 실행 가능한 레퍼런스 job (배포 제외)
-docs/                    # design.md 등 설계 자료 (배포 제외)
-```
+| 디렉터리                   | 패키지                            | 배포    | 내용                                         |
+| -------------------------- | --------------------------------- | ------- | -------------------------------------------- |
+| `stepflow-core/`           | `@kmgeon/stepflow-core`           | ✅      | 엔진·빌더·메타데이터·in-memory repo          |
+| `stepflow-puppeteer/`      | `@kmgeon/stepflow-puppeteer`      | ✅      | 페이지 풀·병렬 러너                          |
+| `stepflow-infrastructure/` | `@kmgeon/stepflow-infrastructure` | ✅      | MySQL/SQLite repo (+ `schema*.sql`)          |
+| `stepflow-integration/`    | `@kmgeon/stepflow-integration`    | ✅      | 트리거 seam·manual/interval                  |
+| `stepflow-test/`           | `@kmgeon/stepflow-test`           | ✅      | repository 계약 스위트·Page 테스트 더블      |
+| `stepflow-bundle/`         | `@kmgeon/stepflow`                | ✅      | **엄브렐러** — core+puppeteer+infra 재export |
+| `stepflow-samples/`        | `@kmgeon/stepflow-samples`        | private | 레퍼런스 job 예제                            |
+| `stepflow-docs/`           | `@kmgeon/stepflow-docs`           | private | 설계 문서(`design.md`)                       |
 
-핵심 규칙 두 가지(상세·근거·모듈 추가 체크리스트는
-[`docs/packaging.md`](./docs/packaging.md)):
+규칙:
 
-- **subpath 모듈은 core를 패키지 자기 이름으로 참조한다** —
-  `import { runJob } from '@kmgeon/stepflow'` (깊은 상대경로 금지). 모듈을 추가하면
-  exports·tsup entry·tsconfig paths·vitest alias를 함께 갱신한다.
-- **무거운 백엔드(`puppeteer`/`mysql2`/`better-sqlite3`)는 `src/puppeteer` /
-  `src/infrastructure` 안에서만 import**하고 core에서는 절대 import하지 않는다.
+- **패키지 간 참조는 패키지 이름으로** (`@kmgeon/stepflow-core` 등). workspaces가
+  로컬로 링크하고, 개발/타입체크/테스트는 `tsconfig.base.json`의 `paths`와 각 패키지
+  `vitest.config.ts`의 alias가 `../stepflow-*/src`로 해석한다. 내부 의존성 버전은
+  `^0.3.0`로 맞춘다.
+- **무거운 백엔드는 (optional) peerDependency.** `puppeteer`(core·puppeteer·test),
+  `mysql2`·`better-sqlite3`(infrastructure)는 코드에서 `import type`로만 참조한다 —
+  소비자가 인스턴스를 주입하므로 런타임에 로드되지 않는다.
+- 엄브렐러 `@kmgeon/stepflow`(stepflow-bundle)는 새 export를 추가하지 말고 trio
+  재export만 유지한다.
 
 ## 9. 린트 & 포맷
 
@@ -127,20 +127,24 @@ docs/                    # design.md 등 설계 자료 (배포 제외)
 
 ## 10. 테스트 & CI
 
-Vitest 사용. **InMemory 중심** — 실제 Chromium도 DB도 띄우지 않는 게 기본이다.
-레이어 구분, 위치 규약, 새 테스트 작성 규칙은
-[`docs/testing.md`](./docs/testing.md).
+Vitest 사용. **InMemory 중심** — 실제 Chromium도 DB도 띄우지 않는 게 기본이다
+(Puppeteer `page`는 `@kmgeon/stepflow-test`의 `createFakePage` 더블로 대체).
 
-- PR 전에 `npm run check`(= `typecheck` + `lint` + `test`)를 녹색으로 통과시킨다.
-  이게 곧 CI 게이트다(`.github/workflows/ci.yml`, 이어서 `npm run build`도 돈다).
+- PR 전에 `npm run check`(= `typecheck` + `lint` + `test`, 전 워크스페이스)를 녹색으로
+  통과시킨다. 이게 곧 CI 게이트다(`.github/workflows/ci.yml`, 이어서 `npm run build`).
+- 두 repository 구현(`InMemory`/`MySql`/`Sqlite`)은 `@kmgeon/stepflow-test`의
+  `describeJobRepositoryContract` 동일 스위트를 통과해야 한다.
 - MySQL contract 테스트는 `MYSQL_URL`이 있을 때만 돈다(opt-in). 영속화 어댑터를
   건드렸으면 로컬에서 한 번 돌려본다.
 
 ## 11. 빌드 & 릴리스
 
-빌드는 `npm run build`(`tsup`, ESM/CJS 듀얼 + `.d.ts`), 배포는 Changesets로 한다.
-패키지는 public(`publishConfig.access: "public"`). 메커니즘·체크리스트·수동 배포는
-[`docs/packaging.md`](./docs/packaging.md).
+각 패키지는 `tsup`로 ESM/CJS 듀얼 + `.d.ts`를 낸다. 루트 `npm run build`가 전
+워크스페이스를 빌드한다. 배포는 Changesets.
 
 - `dist/`를 손으로 수정하지 않는다.
-- 사용자 영향이 있는 변경에는 `npm run changeset`으로 changeset을 추가한다.
+- 사용자 영향이 있는 변경에는 `npm run changeset`으로 changeset을 추가한다. 내부 의존
+  패키지는 함께 버전이 오른다(`.changeset/config.json`의 `updateInternalDependencies`).
+- 전부 public(`publishConfig.access: "public"`). `@kmgeon/stepflow-docs`·
+  `@kmgeon/stepflow-samples`는 배포 제외(changeset `ignore`). 엄브렐러
+  `@kmgeon/stepflow`는 trio와 버전을 맞춰 함께 게시한다.

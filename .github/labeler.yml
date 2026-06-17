@@ -1,30 +1,26 @@
 # Path-based auto-labels for pull requests (actions/labeler v5).
 'area: core':
   - changed-files:
-      - any-glob-to-any-file:
-          - 'src/*'
-          - 'src/builder/**'
-          - 'src/engine/**'
-          - 'src/metadata/**'
-          - 'src/repository/**'
+      - any-glob-to-any-file: 'stepflow-core/**'
 'area: infrastructure':
   - changed-files:
-      - any-glob-to-any-file: 'src/infrastructure/**'
+      - any-glob-to-any-file: 'stepflow-infrastructure/**'
 'area: integration':
   - changed-files:
-      - any-glob-to-any-file: 'src/integration/**'
+      - any-glob-to-any-file: 'stepflow-integration/**'
 'area: puppeteer':
   - changed-files:
-      - any-glob-to-any-file: 'src/puppeteer/**'
+      - any-glob-to-any-file: 'stepflow-puppeteer/**'
+'area: bundle':
+  - changed-files:
+      - any-glob-to-any-file: 'stepflow-bundle/**'
 'area: test':
   - changed-files:
-      - any-glob-to-any-file:
-          - 'src/test/**'
-          - 'test/**'
+      - any-glob-to-any-file: 'stepflow-test/**'
 'area: docs':
   - changed-files:
       - any-glob-to-any-file:
-          - 'docs/**'
+          - 'stepflow-docs/**'
           - 'README.md'
           - '**/*.md'
 'area: ci':

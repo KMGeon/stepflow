@@ -4,8 +4,8 @@
   <img src="assets/stepflow.png" alt="stepflow" width="760" />
 </p>
 
-[![npm](https://img.shields.io/npm/v/@kmgeon/stepflow?label=%40kmgeon%2Fstepflow)](https://www.npmjs.com/package/@kmgeon/stepflow)
-[![license](https://img.shields.io/npm/l/@kmgeon/stepflow)](LICENSE)
+[![npm](https://img.shields.io/npm/v/@kmgeon/stepflow-core?label=%40stepflow%2Fcore)](https://www.npmjs.com/package/@kmgeon/stepflow-core)
+[![license](https://img.shields.io/npm/l/@kmgeon/stepflow-core)](LICENSE)
 [![node](https://img.shields.io/badge/node-%3E%3D20-339933)](package.json)
 [![typescript](https://img.shields.io/badge/TypeScript-strict-3178c6)](tsconfig.base.json)
 
@@ -33,49 +33,61 @@ const result = await runJob(ordersSync, {
   StepExecution and ExecutionContext.
 - **You own runtime resources**: stepflow never launches a browser or owns a DB
   connection. Inject the Puppeteer `page` and the repository you choose.
-- **One install, everything in it**: a single `@kmgeon/stepflow` ships the engine,
-  the parallel Puppeteer runtime, durable MySQL/SQLite repositories, triggers, and
-  test utilities. Import each from its own subpath, so unused modules stay out of
-  your bundle (ESM tree-shaking, `sideEffects: false`).
+- **Install only what you use**: every heavy backend (`puppeteer`, `mysql2`,
+  `better-sqlite3`) is an _optional_ peer — installing `@kmgeon/stepflow-core` has zero
+  dependencies and pulls in nothing else.
 - **Batteries when you want them**: retry policies, chunk-oriented steps,
   lifecycle listeners, durable MySQL/SQLite repositories, schedule triggers, and
-  a bounded parallel Puppeteer runtime.
+  a bounded parallel Puppeteer runtime — each in its own package.
 - **TypeScript-native**: strict types, dual ESM/CJS output, small public APIs.
 
 ## Install
 
+The minimum is the core engine plus a browser — this is all you need to define
+and run jobs:
+
 ```sh
-npm install @kmgeon/stepflow
+npm install @kmgeon/stepflow-core puppeteer
 ```
 
-That's it — the engine, the parallel runtime, the durable repositories, triggers,
-and test utilities all come from this one package. `puppeteer`, `mysql2`, and
-`better-sqlite3` are regular dependencies, so a fresh install is ready to drive a
-browser and persist to SQLite or MySQL with no extra steps.
+**Common setup, one package.** `@kmgeon/stepflow` is an umbrella that bundles and
+re-exports `@kmgeon/stepflow-core` + `@kmgeon/stepflow-puppeteer` + `@kmgeon/stepflow-infrastructure`,
+so the engine, the parallel runtime, and the durable repositories come from a
+single install and import:
 
-Import each capability from its subpath:
+```sh
+npm install @kmgeon/stepflow puppeteer better-sqlite3   # add mysql2 instead of/with sqlite as needed
+```
 
 ```ts
-import { defineJob, runJob, InMemoryJobRepository } from '@kmgeon/stepflow';
-import { runJobsParallel, createPagePool } from '@kmgeon/stepflow/puppeteer';
-import { MySqlJobRepository, SqliteJobRepository } from '@kmgeon/stepflow/infrastructure';
-import { intervalTrigger, createManualTrigger } from '@kmgeon/stepflow/integration';
-import { describeJobRepositoryContract, createFakePage } from '@kmgeon/stepflow/test';
+import { defineJob, runJob, runJobsParallel, SqliteJobRepository } from '@kmgeon/stepflow';
 ```
 
-| Subpath                           | What it gives you                                             |
-| --------------------------------- | ------------------------------------------------------------- |
-| `@kmgeon/stepflow`                | Job builder, execution engine, metadata model, in-memory repo |
-| `@kmgeon/stepflow/puppeteer`      | Bounded page pool + parallel job runner with per-job timeouts |
-| `@kmgeon/stepflow/infrastructure` | Durable MySQL & SQLite `JobRepository` adapters               |
-| `@kmgeon/stepflow/integration`    | Trigger seam plus manual and interval triggers                |
-| `@kmgeon/stepflow/test`           | Repository contract suite, recording listener, `Page` doubles |
+Triggers (`@kmgeon/stepflow-integration`) and test utilities (`@kmgeon/stepflow-test`) stay
+separate — add them when needed.
+
+**Everything else is optional.** Or compose the individual packages directly —
+pick only the rows for features you actually use (they're independent; any subset
+is fine):
+only the rows for features you actually use (they're independent; any subset is
+fine):
+
+| You want…                                 | Install                                              |
+| ----------------------------------------- | ---------------------------------------------------- |
+| Durable restart across processes (MySQL)  | `@kmgeon/stepflow-infrastructure` + `mysql2`         |
+| …or the same with SQLite instead          | `@kmgeon/stepflow-infrastructure` + `better-sqlite3` |
+| Manual / interval / scheduled triggers    | `@kmgeon/stepflow-integration`                       |
+| Bounded parallel execution over many runs | `@kmgeon/stepflow-puppeteer` + `puppeteer`           |
+
+`puppeteer`, `mysql2`, and `better-sqlite3` are **optional peer dependencies** —
+they are never installed automatically, so a package never drags in a backend you
+don't use. (The two infrastructure rows are alternatives: choose one DB driver.)
 
 ## Quick Start
 
 ```ts
 import puppeteer from 'puppeteer';
-import { defineJob, InMemoryJobRepository, runJob } from '@kmgeon/stepflow';
+import { defineJob, InMemoryJobRepository, runJob } from '@kmgeon/stepflow-core';
 
 const ordersSync = defineJob('orders_sync')
   .step('login', async (ctx) => {
@@ -167,11 +179,11 @@ await runJob(job, {
 
 ## Durable restart
 
-Use `@kmgeon/stepflow/infrastructure` when executions must survive process restarts.
+Use `@kmgeon/stepflow-infrastructure` when executions must survive process restarts.
 MySQL and SQLite repositories ship with identical behavior.
 
 ```ts
-import { MySqlJobRepository, SqliteJobRepository } from '@kmgeon/stepflow/infrastructure';
+import { MySqlJobRepository, SqliteJobRepository } from '@kmgeon/stepflow-infrastructure';
 import mysql from 'mysql2/promise';
 import Database from 'better-sqlite3';
 
@@ -181,20 +193,20 @@ const repository = new SqliteJobRepository(new Database('stepflow.db'));
 ```
 
 Apply the matching schema once before use:
-`@kmgeon/stepflow/schema.sql` (MySQL) or
-`@kmgeon/stepflow/schema.sqlite.sql` (SQLite). Re-running the same job
+`@kmgeon/stepflow-infrastructure/schema.sql` (MySQL) or
+`@kmgeon/stepflow-infrastructure/schema.sqlite.sql` (SQLite). Re-running the same job
 with the same identifying `params` resumes the previous failed instance from the
 failed step and restores the shared `ExecutionContext`.
 
 ## Parallel execution
 
-`@kmgeon/stepflow/puppeteer` runs one job across many parameter sets concurrently, each
+`@kmgeon/stepflow-puppeteer` runs one job across many parameter sets concurrently, each
 on an isolated `BrowserContext`, bounded by a page pool. A per-job timeout aborts
 the step's `signal` and force-closes its context, so a hung run can never block
 the batch; failures are isolated per job.
 
 ```ts
-import { runJobsParallel } from '@kmgeon/stepflow/puppeteer';
+import { runJobsParallel } from '@kmgeon/stepflow-puppeteer';
 
 const results = await runJobsParallel(ordersSync, paramsList, {
   repository,
@@ -208,11 +220,11 @@ steps (e.g. `ctx.page.goto(url, { signal: ctx.signal })`).
 
 ## Triggers
 
-`@kmgeon/stepflow/integration` provides the trigger seam for deciding _when_ a job runs.
+`@kmgeon/stepflow-integration` provides the trigger seam for deciding _when_ a job runs.
 A trigger does not know _how_ to run a job; it receives a `run` function.
 
 ```ts
-import { intervalTrigger } from '@kmgeon/stepflow/integration';
+import { intervalTrigger } from '@kmgeon/stepflow-integration';
 
 const handle = await intervalTrigger(60_000).start(() =>
   runJob(ordersSync, { page, repository, params: { since: '2026-06-01' } }),
@@ -224,29 +236,27 @@ await handle.stop();
 
 Use `createManualTrigger()` for tests, CLI commands, or hand-operated runs.
 
-## Entry points
+## Packages
 
-Everything ships in one package, `@kmgeon/stepflow`, exposed through subpath
-exports so you import only what you use:
-
-| Entry point                       | Purpose                                                                      |
-| --------------------------------- | ---------------------------------------------------------------------------- |
-| `@kmgeon/stepflow`                | Job builder, execution engine, metadata model, and in-memory repository.     |
-| `@kmgeon/stepflow/infrastructure` | Durable `JobRepository` adapters: MySQL and SQLite.                          |
-| `@kmgeon/stepflow/integration`    | Trigger seam plus manual and interval trigger implementations.               |
-| `@kmgeon/stepflow/puppeteer`      | Bounded page pool and parallel job runner with per-job timeout cancellation. |
-| `@kmgeon/stepflow/test`           | Repository contract suite, recording listener, and Puppeteer `Page` doubles. |
-| `@kmgeon/stepflow/schema.sql`     | MySQL DDL asset. `…/schema.sqlite.sql` for SQLite.                           |
+| Package                           | Purpose                                                                      | Published |
+| --------------------------------- | ---------------------------------------------------------------------------- | --------- |
+| `@kmgeon/stepflow`                | Umbrella: re-exports core + puppeteer + infrastructure for a single install. | yes       |
+| `@kmgeon/stepflow-core`           | Job builder, execution engine, metadata model, and in-memory repository.     | yes       |
+| `@kmgeon/stepflow-infrastructure` | Durable `JobRepository` adapters: MySQL and SQLite, with schemas.            | yes       |
+| `@kmgeon/stepflow-integration`    | Trigger seam plus manual and interval trigger implementations.               | yes       |
+| `@kmgeon/stepflow-puppeteer`      | Bounded page pool and parallel job runner with per-job timeout cancellation. | yes       |
+| `@kmgeon/stepflow-test`           | Repository contract suite, recording listener, and Puppeteer `Page` doubles. | yes       |
+| `@kmgeon/stepflow-samples`        | Reference jobs used by the monorepo.                                         | private   |
+| `@kmgeon/stepflow-docs`           | Design docs and generated API reference.                                     | private   |
 
 ## Development
 
-Single-package repo. Source lives under `src/<module>/`, tests under
-`test/<module>/`, runnable examples under `examples/`.
+This repository is an npm workspaces monorepo.
 
 ```sh
 npm install
 npm run check          # typecheck + lint + test
-npm run build          # dual ESM/CJS + declaration output, one entry per subpath
+npm run build          # dual ESM/CJS + declaration output
 npm run test:coverage  # coverage thresholds where applicable
 npm run format:check
 ```
@@ -255,7 +265,7 @@ SQLite repository tests run in-memory on every invocation. MySQL repository test
 are opt-in:
 
 ```sh
-MYSQL_URL='mysql://user:pass@localhost:3306/stepflow' npm run test
+MYSQL_URL='mysql://user:pass@localhost:3306/stepflow' npm run test -w @kmgeon/stepflow-infrastructure
 ```
 
 Release metadata is managed with Changesets:
@@ -268,7 +278,7 @@ npm run release
 
 ## Design
 
-Read [the design doc](docs/design.md) for the restart model and metadata
+Read [the design doc](stepflow-docs/design.md) for the restart model and metadata
 schema.
 
 ## License
