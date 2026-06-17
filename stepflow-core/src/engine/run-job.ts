@@ -10,6 +10,8 @@ import type { JobLifecycleContext, JobListener, StepInfo, StepOutcome } from './
 import { backoffDelay } from './retry';
 import type { RetryInfo } from './retry';
 import { isChunkStep, runChunkStep } from './chunk';
+import { realTimeout, runWithTimeout } from './timeout';
+import type { TimeoutScheduler } from './timeout';
 
 /** Awaitable delay used between retry attempts; injectable so tests need not really wait. */
 export type Delay = (ms: number) => Promise<void>;
@@ -37,6 +39,8 @@ export interface RunJobOptions {
   readonly listeners?: readonly JobListener[];
   /** Override the inter-retry delay (e.g. a no-op in tests). Defaults to a real `setTimeout` wait. */
   readonly delay?: Delay;
+  /** Override the timeout scheduler (e.g. a controllable one in tests). Defaults to setTimeout-backed. */
+  readonly timeoutScheduler?: TimeoutScheduler;
   /**
    * Cooperative cancellation signal, exposed to steps via {@link StepContext.signal}.
    * The engine only forwards it — it does NOT itself abort between steps or interrupt
@@ -95,6 +99,7 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
   const allowRestart = options.restart !== false;
   const listeners = options.listeners ?? [];
   const delay = options.delay ?? realDelay;
+  const timeoutScheduler = options.timeoutScheduler ?? realTimeout;
 
   const jobKey = computeJobKey(job.name, params);
   const instance = await repository.resolveInstance(job.name, jobKey);
@@ -188,7 +193,16 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
         caughtError = undefined;
         errorMessage = undefined;
         try {
-          const returned = await step.run(ctx);
+          const timeoutMs = job.stepTimeout(step.name);
+          const returned =
+            timeoutMs === null
+              ? await step.run(ctx)
+              : await runWithTimeout(step.run, ctx, {
+                  stepName: step.name,
+                  timeoutMs,
+                  scheduler: timeoutScheduler,
+                  parentSignal: options.signal,
+                });
           exitStatus = typeof returned === 'string' ? returned : COMPLETED;
         } catch (error) {
           threw = true;
