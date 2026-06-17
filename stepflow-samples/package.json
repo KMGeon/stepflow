@@ -1,0 +1,20 @@
+{
+  "name": "@kmgeon/stepflow-samples",
+  "version": "0.3.0",
+  "description": "Generic reference jobs demonstrating stepflow.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@kmgeon/stepflow-core": "^0.3.0"
+  },
+  "devDependencies": {
+    "@kmgeon/stepflow-test": "^0.3.0",
+    "puppeteer": "^24.0.0"
+  }
+}

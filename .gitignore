@@ -1,7 +1,7 @@
 node_modules
 dist
 coverage
-docs/api
+stepflow-docs/api
 docs/superpowers
 *.tsbuildinfo
 *.log

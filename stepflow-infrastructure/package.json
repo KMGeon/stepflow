@@ -1,0 +1,68 @@
+{
+  "name": "@kmgeon/stepflow-infrastructure",
+  "version": "0.3.0",
+  "description": "MySQL and SQLite JobRepository adapters for stepflow.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KMGeon/stepflow.git",
+    "directory": "stepflow-infrastructure"
+  },
+  "homepage": "https://github.com/KMGeon/stepflow#readme",
+  "bugs": "https://github.com/KMGeon/stepflow/issues",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./schema.sql": "./src/schema.sql",
+    "./schema.sqlite.sql": "./src/schema.sqlite.sql"
+  },
+  "files": [
+    "dist",
+    "src/schema.sql",
+    "src/schema.sqlite.sql",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "prepack": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "if [ -z \"$MYSQL_URL\" ]; then echo 'Skipping @kmgeon/stepflow-infrastructure coverage: MYSQL_URL is not set.'; else vitest run --coverage; fi"
+  },
+  "dependencies": {
+    "@kmgeon/stepflow-core": "^0.3.0"
+  },
+  "peerDependencies": {
+    "better-sqlite3": ">=11",
+    "mysql2": ">=3"
+  },
+  "peerDependenciesMeta": {
+    "mysql2": {
+      "optional": true
+    },
+    "better-sqlite3": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@kmgeon/stepflow-test": "^0.3.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^12.11.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

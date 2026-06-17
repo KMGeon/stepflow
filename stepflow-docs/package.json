@@ -1,0 +1,13 @@
+{
+  "name": "@kmgeon/stepflow-docs",
+  "version": "0.3.0",
+  "description": "stepflow design and architecture documentation.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "docs": "typedoc"
+  },
+  "devDependencies": {
+    "typedoc": "^0.27.0"
+  }
+}
