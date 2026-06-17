@@ -50,9 +50,10 @@ export function attachConsoleCapture(page: Page): { logs: string[]; detach(): vo
   };
   // Puppeteer's typed overloads don't accept a bare string here; the page double
   // and runtime both key off the event name, so cast through a minimal shape.
+  // `never` as param type makes any handler assignable (contravariance).
   const emitter = page as unknown as {
-    on(event: string, cb: (arg: unknown) => void): void;
-    off(event: string, cb: (arg: unknown) => void): void;
+    on(event: string, cb: (arg: never) => void): void;
+    off(event: string, cb: (arg: never) => void): void;
   };
   emitter.on('console', onConsole);
   emitter.on('pageerror', onPageError);
@@ -77,7 +78,7 @@ export async function captureFailureArtifact(
   now: () => number,
 ): Promise<FailureArtifact> {
   let url = '';
-  let screenshot = new Uint8Array();
+  let screenshot: Uint8Array = new Uint8Array();
   let html = '';
   try {
     url = page.url();

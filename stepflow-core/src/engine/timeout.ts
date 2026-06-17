@@ -52,7 +52,7 @@ export async function runWithTimeout(
     stepName: string;
     timeoutMs: number;
     scheduler: TimeoutScheduler;
-    parentSignal?: AbortSignal;
+    parentSignal?: AbortSignal | undefined;
   },
 ): Promise<void | ExitStatus> {
   const controller = new AbortController();
