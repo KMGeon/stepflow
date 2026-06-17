@@ -1,4 +1,0 @@
-{
-  "extends": "../tsconfig.base.json",
-  "include": ["../stepflow-core/src", "../stepflow-infrastructure/src", "../stepflow-test/src"]
-}
