@@ -10,8 +10,7 @@ const page = {} as unknown as Page;
 const noDelay = (): Promise<void> => Promise.resolve();
 
 /** A scheduler whose Nth handle (1-based) fires immediately; others never fire. */
-// eslint-disable-next-line @typescript-eslint/no-empty-function
-const noop = (): void => {};
+const noop = (): undefined => undefined;
 
 function fireOnAttempt(...attempts: number[]): TimeoutScheduler {
   let n = 0;
