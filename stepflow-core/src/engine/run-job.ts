@@ -12,6 +12,8 @@ import type { RetryInfo } from './retry';
 import { isChunkStep, runChunkStep } from './chunk';
 import { realTimeout, runWithTimeout } from './timeout';
 import type { TimeoutScheduler } from './timeout';
+import { captureFailureArtifact } from './artifacts';
+import type { ArtifactSink } from './artifacts';
 
 /** Awaitable delay used between retry attempts; injectable so tests need not really wait. */
 export type Delay = (ms: number) => Promise<void>;
@@ -41,6 +43,10 @@ export interface RunJobOptions {
   readonly delay?: Delay;
   /** Override the timeout scheduler (e.g. a controllable one in tests). Defaults to setTimeout-backed. */
   readonly timeoutScheduler?: TimeoutScheduler;
+  /** Invoked once when a step finally fails, with a page snapshot. Storage is the consumer's. */
+  readonly artifactSink?: ArtifactSink;
+  /** Clock for `capturedAt` (injectable for deterministic tests). Defaults to `Date.now`. */
+  readonly now?: () => number;
   /**
    * Cooperative cancellation signal, exposed to steps via {@link StepContext.signal}.
    * The engine only forwards it — it does NOT itself abort between steps or interrupt
@@ -100,6 +106,8 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
   const listeners = options.listeners ?? [];
   const delay = options.delay ?? realDelay;
   const timeoutScheduler = options.timeoutScheduler ?? realTimeout;
+  const artifactSink = options.artifactSink;
+  const now = options.now ?? ((): number => Date.now());
 
   const jobKey = computeJobKey(job.name, params);
   const instance = await repository.resolveInstance(job.name, jobKey);
@@ -254,6 +262,26 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
       ...(errorMessage !== undefined ? { error: errorMessage } : {}),
     };
     if (failed) {
+      if (artifactSink !== undefined) {
+        const artifact = await captureFailureArtifact(
+          page,
+          {
+            jobName: job.name,
+            executionId: execution.id,
+            stepName: step.name,
+            seqNo,
+            error: errorMessage ?? `step "${step.name}" returned exit status "${exitStatus}"`,
+          },
+          [],
+          now,
+        );
+        try {
+          await artifactSink(artifact);
+        } catch (sinkError) {
+          const message = sinkError instanceof Error ? sinkError.message : String(sinkError);
+          logger.error('artifactSink threw', { error: message });
+        }
+      }
       const stepError = threw
         ? caughtError
         : new Error(`step "${step.name}" returned exit status "${exitStatus}"`);
