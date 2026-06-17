@@ -20,6 +20,8 @@ export interface Job {
   stepAt(stepName: string): StepLocation;
   /** Retry policy registered for a step, or `null` if it has none. */
   retryPolicy(stepName: string): RetryPolicy | null;
+  /** Per-attempt timeout (ms) registered for a step, or `null` if it has none. */
+  stepTimeout(stepName: string): number | null;
 }
 
 /** Fluent surface for assembling a {@link Job}. */
@@ -32,6 +34,8 @@ export interface JobBuilder {
   branch(stepName: string, mapping: Readonly<Record<string, string>>): JobBuilder;
   /** Attach a retry policy to a step. Only thrown errors are retried (not explicit FAILED returns). */
   retry(stepName: string, policy: RetryPolicy): JobBuilder;
+  /** Attach a per-attempt timeout (ms) to a step. Exceeding it throws StepTimeoutError. */
+  timeout(stepName: string, ms: number): JobBuilder;
   /** Validate the flow graph and produce an immutable {@link Job}. */
   build(): Job;
 }
@@ -41,6 +45,7 @@ class JobBuilderImpl implements JobBuilder {
   readonly #steps: JobStep[] = [];
   readonly #branches = new Map<string, Record<string, string>>();
   readonly #retries = new Map<string, RetryPolicy>();
+  readonly #timeouts = new Map<string, number>();
 
   constructor(name: string) {
     this.#name = name;
@@ -81,6 +86,11 @@ class JobBuilderImpl implements JobBuilder {
     return this;
   }
 
+  timeout(stepName: string, ms: number): this {
+    this.#timeouts.set(stepName, ms);
+    return this;
+  }
+
   build(): Job {
     const [first] = this.#steps;
     if (first === undefined) {
@@ -105,8 +115,23 @@ class JobBuilderImpl implements JobBuilder {
       }
     }
 
+    for (const stepName of this.#timeouts.keys()) {
+      const location = locations.get(stepName);
+      if (location === undefined) {
+        throw new JobDefinitionError(
+          `Job "${this.#name}" sets timeout on unknown step "${stepName}"`,
+        );
+      }
+      if ('reader' in location.step) {
+        throw new JobDefinitionError(
+          `Job "${this.#name}" cannot set timeout on chunk step "${stepName}" (chunk steps recover via checkpoint restart)`,
+        );
+      }
+    }
+
     const name = this.#name;
     const retries = new Map(this.#retries);
+    const timeouts = new Map(this.#timeouts);
     const job: Job = {
       name,
       steps: Object.freeze(this.#steps.slice()),
@@ -123,6 +148,9 @@ class JobBuilderImpl implements JobBuilder {
       },
       retryPolicy(stepName: string): RetryPolicy | null {
         return retries.get(stepName) ?? null;
+      },
+      stepTimeout(stepName: string): number | null {
+        return timeouts.get(stepName) ?? null;
       },
     };
     return Object.freeze(job);

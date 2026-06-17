@@ -40,6 +40,11 @@ export type { JobListener, JobLifecycleContext, StepInfo, StepOutcome } from './
 
 export type { RetryPolicy, BackoffPolicy, RetryInfo } from './engine/retry';
 
+export { StepTimeoutError } from './engine/timeout';
+export type { TimeoutScheduler, TimeoutHandle } from './engine/timeout';
+
+export type { FailureArtifact, ArtifactSink } from './engine/artifacts';
+
 export type { ChunkInfo } from './engine/chunk';
 export { isChunkStep } from './engine/chunk';
 

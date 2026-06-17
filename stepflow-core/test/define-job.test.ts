@@ -98,3 +98,30 @@ describe('defineJob / build', () => {
     expect(() => job.stepAt('ghost')).toThrow();
   });
 });
+
+describe('timeout()', () => {
+  it('rejects a timeout on an unknown step at build()', () => {
+    expect(() => defineJob('j').step('a', noop).timeout('nope', 1000).build()).toThrow(
+      JobDefinitionError,
+    );
+  });
+
+  it('rejects a timeout on a chunk step at build()', () => {
+    expect(() =>
+      defineJob('j')
+        .chunkStep('c', {
+          chunkSize: 1,
+          reader: () => [1],
+          writer: noop,
+        })
+        .timeout('c', 1000)
+        .build(),
+    ).toThrow(JobDefinitionError);
+  });
+
+  it('exposes the configured timeout via stepTimeout(), null when unset', () => {
+    const job = defineJob('j').step('a', noop).step('b', noop).timeout('a', 1500).build();
+    expect(job.stepTimeout('a')).toBe(1500);
+    expect(job.stepTimeout('b')).toBeNull();
+  });
+});
