@@ -358,12 +358,12 @@ stepflow는 단일 npm 패키지가 아니라 **npm-workspaces 모노레포**로
 
 ## 15. 로드맵 (전체 목표 = Spring Batch 기능 이식)
 
-| 버전            | 내용                                                                                                                         |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| **v0.1 (이번)** | 선형+분기 빌더 · page 주입 · L3 스키마 · 파라미터 1급 + 인스턴스 restart · ExecutionContext 영속 · MySql/InMemory repository |
-| **v0.2**        | retry/recovery (백오프 + 실패 아티팩트: 스크린샷/HTML) · listeners (lifecycle seam 공식화) · 파라미터 검증/incrementer       |
-| **v0.3**        | chunk-oriented (ItemReader/Processor/Writer + skip policy + `execution_context` 체크포인트 = item 700부터 재개)              |
-| **later**       | 병렬/파티셔닝(멀티 브라우저) · Postgres 어댑터 · `@kmgeon/stepflow-nestjs` 어댑터                                            |
+| 버전            | 내용                                                                                                                                                                                                 |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **v0.1 (이번)** | 선형+분기 빌더 · page 주입 · L3 스키마 · 파라미터 1급 + 인스턴스 restart · ExecutionContext 영속 · MySql/InMemory repository                                                                         |
+| **v0.2**        | retry/recovery (백오프) ✅ · 실패 아티팩트(스크린샷/HTML/URL/콘솔 → `artifactSink`) ✅ · step 시도-단위 타임아웃(`.timeout()`) ✅ · listeners (lifecycle seam 공식화) ✅ · 파라미터 검증/incrementer |
+| **v0.3**        | chunk-oriented (ItemReader/Processor/Writer + skip policy + `execution_context` 체크포인트 = item 700부터 재개)                                                                                      |
+| **later**       | 병렬/파티셔닝(멀티 브라우저) · Postgres 어댑터 · `@kmgeon/stepflow-nestjs` 어댑터                                                                                                                    |
 
 ## 16. 성공 기준
 
