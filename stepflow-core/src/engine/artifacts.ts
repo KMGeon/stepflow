@@ -31,6 +31,40 @@ export interface FailureArtifactMeta {
   readonly error: string;
 }
 
+/** A Puppeteer ConsoleMessage exposes `text()`; we only need that here. */
+interface ConsoleLike {
+  text(): string;
+}
+
+/**
+ * Subscribe to a page's `console`/`pageerror` events and buffer their text.
+ * Returns the live buffer and a `detach` to unsubscribe at step end.
+ */
+export function attachConsoleCapture(page: Page): { logs: string[]; detach(): void } {
+  const logs: string[] = [];
+  const onConsole = (msg: ConsoleLike): void => {
+    logs.push(msg.text());
+  };
+  const onPageError = (err: Error): void => {
+    logs.push(err.message);
+  };
+  // Puppeteer's typed overloads don't accept a bare string here; the page double
+  // and runtime both key off the event name, so cast through a minimal shape.
+  const emitter = page as unknown as {
+    on(event: string, cb: (arg: unknown) => void): void;
+    off(event: string, cb: (arg: unknown) => void): void;
+  };
+  emitter.on('console', onConsole);
+  emitter.on('pageerror', onPageError);
+  return {
+    logs,
+    detach: () => {
+      emitter.off('console', onConsole);
+      emitter.off('pageerror', onPageError);
+    },
+  };
+}
+
 /**
  * Best-effort capture: each of screenshot/html/url is independent, so a failure
  * in one still yields the others. Never throws — capture must not mask the

@@ -12,7 +12,7 @@ import type { RetryInfo } from './retry';
 import { isChunkStep, runChunkStep } from './chunk';
 import { realTimeout, runWithTimeout } from './timeout';
 import type { TimeoutScheduler } from './timeout';
-import { captureFailureArtifact } from './artifacts';
+import { attachConsoleCapture, captureFailureArtifact } from './artifacts';
 import type { ArtifactSink } from './artifacts';
 
 /** Awaitable delay used between retry attempts; injectable so tests need not really wait. */
@@ -171,6 +171,7 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
     const { step, seqNo } = job.stepAt(current);
     const stepInfo: StepInfo = { stepName: step.name, seqNo };
     const stepExecution = await repository.startStep(execution.id, step.name, seqNo);
+    const consoleCapture = artifactSink !== undefined ? attachConsoleCapture(page) : null;
     await notify(listeners, logger, (l) => l.beforeStep?.(ctx, stepInfo));
 
     const startedAt = Date.now();
@@ -272,7 +273,7 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
             seqNo,
             error: errorMessage ?? `step "${step.name}" returned exit status "${exitStatus}"`,
           },
-          [],
+          consoleCapture?.logs ?? [],
           now,
         );
         try {
@@ -288,6 +289,7 @@ export async function runJob(job: Job, options: RunJobOptions): Promise<RunJobRe
       await notify(listeners, logger, (l) => l.onStepError?.(ctx, stepInfo, stepError));
     }
     await notify(listeners, logger, (l) => l.afterStep?.(ctx, stepInfo, outcome));
+    consoleCapture?.detach();
 
     lastExitStatus = exitStatus;
     const next = job.next(step.name, exitStatus);

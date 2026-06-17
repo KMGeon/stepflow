@@ -10,6 +10,8 @@ const noDelay = (): Promise<void> => Promise.resolve();
 
 function failingPage() {
   return createFakePage({
+    on: (): undefined => undefined,
+    off: (): undefined => undefined,
     screenshot: () => Promise.resolve(new Uint8Array([1, 2, 3])),
     content: () => Promise.resolve('<html>boom</html>'),
     url: () => 'https://example.com/fail',
@@ -71,9 +73,10 @@ describe('failure artifacts', () => {
     const job = defineJob('j')
       .step('ok', () => Promise.resolve())
       .build();
-    // no screenshot/content handlers: if capture is wrongly attempted, the fake page throws
+    // on/off stubs required for console capture attach/detach; no screenshot/content
+    // handlers: if failure capture is wrongly attempted, the fake page throws.
     await runJob(job, {
-      page: createFakePage(),
+      page: createFakePage({ on: (): undefined => undefined, off: (): undefined => undefined }),
       repository: repo,
       delay: noDelay,
       artifactSink: (a) => {
@@ -110,5 +113,38 @@ describe('failure artifacts', () => {
       delay: noDelay,
     });
     expect(result.status).toBe('FAILED');
+  });
+
+  it('TC-12: console and pageerror lines emitted during the step are captured', async () => {
+    const handlers: Record<string, (arg: unknown) => void> = {};
+    const page = createFakePage({
+      on: (event: string, cb: (arg: unknown) => void) => {
+        handlers[event] = cb;
+      },
+      off: (): undefined => undefined,
+      url: () => 'https://example.com/fail',
+      screenshot: () => Promise.resolve(new Uint8Array()),
+      content: () => Promise.resolve(''),
+    });
+    const captured: FailureArtifact[] = [];
+    const job = defineJob('j')
+      .step('boom', () => {
+        // simulate the page emitting console output during the step
+        handlers.console?.({ text: () => 'hello from page' });
+        handlers.pageerror?.(new Error('page blew up'));
+        return Promise.reject(new Error('kaboom'));
+      })
+      .build();
+    await runJob(job, {
+      page,
+      repository: repo,
+      delay: noDelay,
+      artifactSink: (a) => {
+        captured.push(a);
+      },
+    });
+    const artifact = captured[0];
+    if (artifact === undefined) throw new Error('expected one captured artifact');
+    expect(artifact.consoleLogs).toEqual(['hello from page', 'page blew up']);
   });
 });
